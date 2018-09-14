@@ -93,6 +93,8 @@ func IsMethod(expr ast.Decl) bool {
 	return false
 }
 
+// GetFieldByName will retrieve the ast.Field off of an ast.TypeSpec and
+// field name.
 func GetFieldByName(fieldName string, spec *ast.TypeSpec) *ast.Field {
 	if !IsStruct(spec.Type) {
 		return nil
