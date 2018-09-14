@@ -72,6 +72,9 @@ func TestDeprecateFieldRule(t *testing.T) {
 
 			v := pepperlint.NewVisitor(fset, c.rulesFn(fset))
 
+			// populate cache
+			ast.Walk(pepperlint.PackagesCache, node)
+
 			ast.Walk(v, node)
 			t.Log("\n", "\b\b", v.Errors)
 

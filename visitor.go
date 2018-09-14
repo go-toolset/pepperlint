@@ -77,7 +77,6 @@ func (v *Visitor) visitDecl(decl ast.Decl) {
 	case *ast.FuncDecl:
 		v.visitFuncDecl(t)
 	case *ast.GenDecl:
-		Log("DECL %v", decl)
 		v.visitGenDecl(t)
 	default:
 		Log("TODO: visitDecl %T\n", t)

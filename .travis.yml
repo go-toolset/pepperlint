@@ -14,10 +14,6 @@ matrix:
           sudo: required
           go: tip
         - os: osx
-          go: 1.7.x
-        - os: osx
-          go: 1.8.x
-        - os: osx
           go: 1.9.x
         - os: osx
           go: 1.10.x

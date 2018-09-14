@@ -11,10 +11,8 @@ import (
 
 // DeprecatedFieldRule will check usage of a deprecated field by field name.
 type DeprecatedFieldRule struct {
-	fset *token.FileSet
-
+	fset           *token.FileSet
 	currentPkgName string
-	deprecatedInfo map[string]map[string]deprecatedInfo
 }
 
 // NewDeprecatedFieldRule will return a new deprecation rule for fields.
@@ -22,8 +20,7 @@ type DeprecatedFieldRule struct {
 // an error.
 func NewDeprecatedFieldRule(fset *token.FileSet) *DeprecatedFieldRule {
 	return &DeprecatedFieldRule{
-		fset:           fset,
-		deprecatedInfo: map[string]map[string]deprecatedInfo{},
+		fset: fset,
 	}
 }
 
@@ -53,7 +50,7 @@ func (r DeprecatedFieldRule) containsDeprecatedFields(node ast.Node, cl *ast.Com
 
 		structName = t.Sel.Name
 
-		info, ok := r.deprecatedInfo[pkgName][structName]
+		info, ok := pepperlint.PackagesCache.TypeInfos[pkgName][structName]
 		if !ok {
 			// TODO: Should probably return regular error like could not find pkg.foo
 			return nil
@@ -277,7 +274,7 @@ func (r DeprecatedFieldRule) isReturnSelectorExprDeprecated(fset *token.FileSet,
 				}
 
 				// get struct info from the cache
-				info := r.deprecatedInfo[pkgIdent.Name][selExpr.Sel.Name]
+				info := pepperlint.PackagesCache.TypeInfos[pkgIdent.Name][selExpr.Sel.Name]
 
 				depField := utils.GetFieldByName(t.Sel.Name, info.Spec)
 				if depField == nil {
@@ -401,29 +398,6 @@ func (r DeprecatedFieldRule) ValidateReturnStmt(stmt *ast.ReturnStmt) error {
 	return batchError.Return()
 }
 
-// ValidateGenDecl needs to be visited since for whatever reason the Doc
-// field in TypeSpec is always nil. Instead the doc string needs to be
-// pulled out of the GenDecl shape.
-func (r *DeprecatedFieldRule) ValidateGenDecl(decl *ast.GenDecl) error {
-	for _, spec := range decl.Specs {
-		switch t := spec.(type) {
-		case *ast.TypeSpec:
-			if _, ok := r.deprecatedInfo[r.currentPkgName]; !ok {
-				r.deprecatedInfo[r.currentPkgName] = map[string]deprecatedInfo{}
-			}
-
-			r.deprecatedInfo[r.currentPkgName][t.Name.Name] = deprecatedInfo{
-				decl.Doc,
-				t,
-			}
-		default:
-			pepperlint.Log("TODO: dep_field_rule.ValidateGenDecl: %T\n", t)
-		}
-	}
-
-	return nil
-}
-
 // ValidatePackage will set the current package name to the package that is currently
 // being visited.
 func (r *DeprecatedFieldRule) ValidatePackage(pkg *ast.Package) error {
@@ -436,7 +410,6 @@ func (r *DeprecatedFieldRule) AddRules(v *pepperlint.Visitor) {
 	rules := pepperlint.Rules{
 		AssignStmtRules: pepperlint.AssignStmtRules{r},
 		CallExprRules:   pepperlint.CallExprRules{r},
-		GenDeclRules:    pepperlint.GenDeclRules{r},
 		PackageRules:    pepperlint.PackageRules{r},
 		ReturnStmtRules: pepperlint.ReturnStmtRules{r},
 	}

@@ -11,23 +11,15 @@ import (
 // DeprecatedStructRule will validate that no deprecated struct
 // is used.
 type DeprecatedStructRule struct {
-	fset *token.FileSet
-
-	deprecatedInfo map[string]map[string]deprecatedInfo
+	fset           *token.FileSet
 	currentPkgName string
-}
-
-type deprecatedInfo struct {
-	Doc  *ast.CommentGroup
-	Spec *ast.TypeSpec
 }
 
 // NewDeprecatedStructRule return a newly instantiated DeprecatedStructRule
 // with the given file set.
 func NewDeprecatedStructRule(fset *token.FileSet) *DeprecatedStructRule {
 	return &DeprecatedStructRule{
-		fset:           fset,
-		deprecatedInfo: map[string]map[string]deprecatedInfo{},
+		fset: fset,
 	}
 }
 
@@ -56,7 +48,7 @@ func (r DeprecatedStructRule) isSelectorExprDeprecated(node ast.Node, expr *ast.
 		return nil
 	}
 
-	info := r.deprecatedInfo[ident.Name][expr.Sel.Name]
+	info := pepperlint.PackagesCache.TypeInfos[ident.Name][expr.Sel.Name]
 	if hasDeprecatedComment(info.Doc) {
 		return pepperlint.NewErrorWrap(r.fset, node, fmt.Sprintf("deprecated '%s.%s' struct used", ident.Name, expr.Sel.Name))
 	}
@@ -105,32 +97,9 @@ func (r DeprecatedStructRule) isIdentDeprecated(node ast.Node, ident *ast.Ident)
 		return nil
 	}
 
-	info := r.deprecatedInfo[r.currentPkgName][spec.Name.Name]
+	info := pepperlint.PackagesCache.TypeInfos[r.currentPkgName][spec.Name.Name]
 	if hasDeprecatedComment(info.Doc) {
 		return pepperlint.NewErrorWrap(r.fset, node, fmt.Sprintf("deprecated %q struct used", spec.Name.Name))
-	}
-
-	return nil
-}
-
-// ValidateGenDecl needs to be visited since for whatever reason the Doc
-// field in TypeSpec is always nil. Instead the doc string needs to be
-// pulled out of the GenDecl shape.
-func (r *DeprecatedStructRule) ValidateGenDecl(decl *ast.GenDecl) error {
-	for _, spec := range decl.Specs {
-		switch t := spec.(type) {
-		case *ast.TypeSpec:
-			if _, ok := r.deprecatedInfo[r.currentPkgName]; !ok {
-				r.deprecatedInfo[r.currentPkgName] = map[string]deprecatedInfo{}
-			}
-
-			r.deprecatedInfo[r.currentPkgName][t.Name.Name] = deprecatedInfo{
-				decl.Doc,
-				t,
-			}
-		default:
-			pepperlint.Log("TODO: dep_struct_rule.ValidateGenDecl: %T\n", t)
-		}
 	}
 
 	return nil
@@ -193,7 +162,7 @@ func (r DeprecatedStructRule) deprecatedStructUsage(rhs ast.Expr, expr ast.Expr)
 			return errs
 		}
 
-		info := r.deprecatedInfo[r.currentPkgName][decl.Name.Name]
+		info := pepperlint.PackagesCache.TypeInfos[r.currentPkgName][decl.Name.Name]
 		if hasDeprecatedComment(info.Doc) {
 			errs = append(errs, pepperlint.NewErrorWrap(r.fset, rhs, fmt.Sprintf("deprecated %q struct used", decl.Name.Name)))
 		} else if es := r.checkTypeAliases(rhs, decl.Type); len(es) > 0 {
@@ -224,7 +193,7 @@ func (r DeprecatedStructRule) checkTypeAliases(rhs ast.Node, expr ast.Expr) []er
 			return errs
 		}
 
-		info := r.deprecatedInfo[r.currentPkgName][spec.Name.Name]
+		info := pepperlint.PackagesCache.TypeInfos[r.currentPkgName][spec.Name.Name]
 		if hasDeprecatedComment(info.Doc) {
 			errs = append(errs, pepperlint.NewErrorWrap(r.fset, rhs, fmt.Sprintf("deprecated %q struct used", spec.Name.Name)))
 		} else {
@@ -408,7 +377,6 @@ func (r DeprecatedStructRule) ValidateTypeSpec(spec *ast.TypeSpec) error {
 // AddRules will add the DeprecatedStructRule to the given visitor
 func (r *DeprecatedStructRule) AddRules(v *pepperlint.Visitor) {
 	rules := pepperlint.Rules{
-		GenDeclRules:    pepperlint.GenDeclRules{r},
 		AssignStmtRules: pepperlint.AssignStmtRules{r},
 		CallExprRules:   pepperlint.CallExprRules{r},
 		ReturnStmtRules: pepperlint.ReturnStmtRules{r},

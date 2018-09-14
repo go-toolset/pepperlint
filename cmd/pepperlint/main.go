@@ -101,7 +101,7 @@ func (b PackageSetBuilder) addFile(fset *token.FileSet, container Container) (Co
 	return container, nil
 }
 
-// Build ..
+// Build will build a container which contains all packages we will walk.
 func (b PackageSetBuilder) Build() (Container, *token.FileSet, error) {
 	container := Container{}
 	fset := token.NewFileSet()
@@ -142,7 +142,7 @@ func (b PackageSetBuilder) Build() (Container, *token.FileSet, error) {
 	return container, fset, nil
 }
 
-func walk(v *pepperlint.Visitor, p []Packages) {
+func walk(v ast.Visitor, p []Packages) {
 	sortedPkgNames := []string{}
 	for _, pkgs := range p {
 		sortedPkgNames = sortedPkgNames[0:0]
@@ -179,7 +179,7 @@ func lint(pkgs []string, pkg string) (*pepperlint.Visitor, Container, error) {
 	rule := core.NewDeprecatedRule(fset)
 	rule.AddRules(v)
 
-	walk(v, container.Packages)
+	walk(pepperlint.PackagesCache, container.Packages)
 	walk(v, container.RulesPackages)
 
 	return v, container, nil
