@@ -196,8 +196,8 @@ func (r DeprecatedStructRule) deprecatedStructUsage(rhs ast.Expr, expr ast.Expr)
 		info := r.deprecatedInfo[r.currentPkgName][decl.Name.Name]
 		if hasDeprecatedComment(info.Doc) {
 			errs = append(errs, pepperlint.NewErrorWrap(r.fset, rhs, fmt.Sprintf("deprecated %q struct used", decl.Name.Name)))
-		} else if errs := r.checkTypeAliases(rhs, decl.Type); len(errs) > 0 {
-			return errs
+		} else if es := r.checkTypeAliases(rhs, decl.Type); len(es) > 0 {
+			errs = append(errs, es...)
 		}
 
 	// this case will happen when a imported package structure is being used.

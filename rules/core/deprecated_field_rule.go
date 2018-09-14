@@ -226,7 +226,7 @@ func (r DeprecatedFieldRule) getDeclFromSelectorExpr(e ast.Expr) (*ast.SelectorE
 	}
 
 	// This occurrs when field assignment occurrs on an object
-	if field, ok := expr.Obj.Decl.(*ast.Field); ok {
+	if field, found := expr.Obj.Decl.(*ast.Field); found {
 		return t, nil, r.checkDeprecatedFieldUse(t, field)
 	}
 

@@ -14,7 +14,9 @@ type LineNumberError interface {
 	LineNumber() int
 }
 
-// ErrorWrap ...
+// ErrorWrap will extract the line number from the ast.Node provided.
+// The prefix usually represents the file name that the lint error was
+// found in.
 type ErrorWrap struct {
 	pos    token.Position
 	prefix string
@@ -44,19 +46,20 @@ func (e *ErrorWrap) LineNumber() int {
 	return e.pos.Line
 }
 
-// BatchError ...
+// BatchError groups a set of errors together usually to organize
+// them by Validator but is not limited to.
 type BatchError struct {
 	errors []error
 }
 
-// NewBatchError ...
+// NewBatchError returns a new BatchError
 func NewBatchError(errs ...error) *BatchError {
 	return &BatchError{
 		errors: errs,
 	}
 }
 
-// Add ...
+// Add will add a new error to the BatchError
 func (e *BatchError) Add(errs ...error) {
 	e.errors = append(e.errors, errs...)
 }
@@ -66,12 +69,13 @@ func (e *BatchError) Errors() []error {
 	return e.errors
 }
 
-// Len ...
+// Len returns the length of the errors contained in the BatchError
 func (e *BatchError) Len() int {
 	return len(e.errors)
 }
 
-// Return ...
+// Return will return BatchError if there is at least 1 error in the container.
+// If not, nil will be returned
 func (e *BatchError) Return() error {
 	if e.Len() == 0 {
 		return nil
@@ -92,10 +96,11 @@ func (e BatchError) Error() string {
 	return buf.String()
 }
 
-// Errors ...
+// Errors is a list of errors. This type is mostly used for pretty printing the
+// error message.
 type Errors []error
 
-// Add ...
+// Add will add the series of errors to the list.
 func (e *Errors) Add(errs ...error) {
 	*e = append(*e, errs...)
 }

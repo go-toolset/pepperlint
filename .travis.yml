@@ -1,0 +1,32 @@
+language: go
+
+matrix:
+    allow_failures:
+        - go: tip
+    include:
+        - os: linux
+          sudo: required
+          go: 1.9.x
+        - os: linux
+          sudo: required
+          go: 1.10.x
+        - os: linux
+          sudo: required
+          go: tip
+        - os: osx
+          go: 1.7.x
+        - os: osx
+          go: 1.8.x
+        - os: osx
+          go: 1.9.x
+        - os: osx
+          go: 1.10.x
+        - os: osx
+          go: tip
+
+script:
+  - make ci-test
+
+branches:
+  only:
+    - master
