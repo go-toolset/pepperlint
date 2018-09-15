@@ -218,4 +218,7 @@ func main() {
 	}
 
 	fmt.Fprintf(os.Stderr, "%v", v.Errors)
+	if len(v.Errors) != 0 {
+		os.Exit(1)
+	}
 }
