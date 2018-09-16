@@ -8,11 +8,13 @@ import (
 // This allows packages to inspect other packages types
 var PackagesCache = &Cache{
 	TypeInfos: TypeInfos{},
+	OpInfos:   OpInfos{},
 }
 
 // Cache defintion that contain type information per package.
 type Cache struct {
 	TypeInfos TypeInfos
+	OpInfos   OpInfos
 
 	currentPkgName string
 }
@@ -37,31 +39,116 @@ func (p PackageTypeInfos) Get(structname string) (TypeInfo, bool) {
 
 // TypeInfo contains the type definition and documentation tied to that definition.
 type TypeInfo struct {
-	Doc  *ast.CommentGroup
-	Spec *ast.TypeSpec
+	Doc     *ast.CommentGroup
+	Spec    *ast.TypeSpec
+	PkgName string
+}
+
+// OpInfos maintains package operation information
+type OpInfos map[string]PackageOpInfos
+
+// PackageOpInfos is a map of key operation name and OpInfo containing
+// relevant per package operation declarations.
+type PackageOpInfos map[string]OpInfo
+
+// OpInfo signifies an operation which is a method or function.
+type OpInfo struct {
+	IsMethod  bool
+	TypeSpecs []*ast.TypeSpec
+	Decl      *ast.FuncDecl
+	PkgName   string
+}
+
+// HasReceiverType will return true if the method has a receiver of type
+// spec.
+func (oi OpInfo) HasReceiverType(spec *ast.TypeSpec) bool {
+	if !oi.IsMethod {
+		return false
+	}
+
+	for _, s := range oi.TypeSpecs {
+		if s == spec {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (c *Cache) getTypeFromField(expr ast.Expr) (*ast.TypeSpec, bool) {
+	switch fieldType := expr.(type) {
+	case *ast.Ident:
+		if fieldType.Obj == nil {
+			return nil, false
+		}
+
+		if fieldType.Obj.Decl == nil {
+			return nil, false
+		}
+
+		spec, ok := fieldType.Obj.Decl.(*ast.TypeSpec)
+		if !ok {
+			return nil, false
+		}
+
+		return spec, true
+	case *ast.StarExpr:
+		return c.getTypeFromField(fieldType.X)
+	default:
+		Log("OPPOPOPOO %T %v", fieldType, fieldType)
+	}
+
+	return nil, false
 }
 
 // Visit will cache all specifications and docs
 func (c *Cache) Visit(node ast.Node) ast.Visitor {
-	decl, ok := node.(*ast.GenDecl)
-	if !ok {
-		if pkg, ok := node.(*ast.Package); ok {
-			c.currentPkgName = pkg.Name
+	switch t := node.(type) {
+	case *ast.FuncDecl:
+		if _, ok := c.OpInfos[c.currentPkgName]; !ok {
+			c.OpInfos[c.currentPkgName] = PackageOpInfos{}
 		}
 
-		return c
-	}
+		method := false
+		opInfo := OpInfo{
+			Decl:    t,
+			PkgName: c.currentPkgName,
+		}
 
-	for _, spec := range decl.Specs {
-		switch t := spec.(type) {
-		case *ast.TypeSpec:
-			if _, ok := c.TypeInfos[c.currentPkgName]; !ok {
-				c.TypeInfos[c.currentPkgName] = PackageTypeInfos{}
+		// If receiver is nil, this implies that this is a function and
+		// not a method.
+		if t.Recv != nil {
+
+			// methods can have multiple receivers it looks like.
+			for _, field := range t.Recv.List {
+				method = true
+				spec, ok := c.getTypeFromField(field.Type)
+				if !ok {
+					continue
+				}
+
+				opInfo.TypeSpecs = append(opInfo.TypeSpecs, spec)
 			}
 
-			c.TypeInfos[c.currentPkgName][t.Name.Name] = TypeInfo{
-				decl.Doc,
-				t,
+			opInfo.IsMethod = method
+		}
+
+		c.OpInfos[c.currentPkgName][t.Name.Name] = opInfo
+	case *ast.Package:
+		c.currentPkgName = t.Name
+	case *ast.GenDecl:
+		for _, spec := range t.Specs {
+			switch spec := spec.(type) {
+			case *ast.TypeSpec:
+				if _, ok := c.TypeInfos[c.currentPkgName]; !ok {
+					c.TypeInfos[c.currentPkgName] = PackageTypeInfos{}
+				}
+
+				c.TypeInfos[c.currentPkgName][spec.Name.Name] = TypeInfo{
+					t.Doc,
+					spec,
+					c.currentPkgName,
+				}
 			}
 		}
 	}

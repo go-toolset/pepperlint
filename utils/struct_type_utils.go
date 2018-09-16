@@ -2,6 +2,7 @@ package utils
 
 import (
 	"go/ast"
+	"log"
 )
 
 // IsStruct will return whether or not an ast.Expr is a
@@ -91,6 +92,33 @@ func IsMethod(expr ast.Decl) bool {
 	}
 
 	return false
+}
+
+// GetOpFromType ...
+func GetOpFromType(spec *ast.TypeSpec, name string) *ast.CallExpr {
+	switch t := spec.Type.(type) {
+	case *ast.StructType:
+		for _, field := range t.Fields.List {
+			if field.Type == nil {
+				continue
+			}
+
+			callExpr, ok := field.Type.(*ast.CallExpr)
+			if !ok {
+				continue
+			}
+
+			for _, n := range field.Names {
+				if name == n.Name {
+					return callExpr
+				}
+			}
+		}
+	default:
+		log.Printf("TODO: GetOpFromType %T", t)
+	}
+
+	return nil
 }
 
 // GetFieldByName will retrieve the ast.Field off of an ast.TypeSpec and

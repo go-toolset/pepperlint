@@ -15,13 +15,23 @@ func deprecatedFunction(bar deprecated.Deprecated) deprecated.Deprecated {
 	}
 
 	foo.DeprecatedField = 2
-	v := moo(foo) // TODO
+	v := moo(foo)
 	if v == 0 {
-		return foo
+		return foo // TODO
 	}
 
 	fmt.Println(foo)
 	fmt.Println(foo.DeprecatedField)
+
+	baz := &deprecated.Deprecated{} // TODO
+	baz.DeprecatedOp()
+	a := baz.DeprecatedOp()
+
+	baz.DeprecatedPtrOp()
+	b := baz.DeprecatedPtrOp()
+
+	deprecated.DeprecatedFunction() // TODO
+
 	return deprecated.Deprecated{}
 }
 

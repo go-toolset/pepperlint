@@ -14,6 +14,7 @@ const deprecatedPrefix = `// Deprecated:`
 type DeprecatedRule struct {
 	structRule *DeprecatedStructRule
 	fieldRule  *DeprecatedFieldRule
+	opRule     *DeprecatedOpRule
 }
 
 // NewDeprecatedRule ...
@@ -21,6 +22,7 @@ func NewDeprecatedRule(fset *token.FileSet) *DeprecatedRule {
 	return &DeprecatedRule{
 		structRule: NewDeprecatedStructRule(fset),
 		fieldRule:  NewDeprecatedFieldRule(fset),
+		opRule:     NewDeprecatedOpRule(fset),
 	}
 }
 
@@ -28,6 +30,7 @@ func NewDeprecatedRule(fset *token.FileSet) *DeprecatedRule {
 func (r *DeprecatedRule) AddRules(v *pepperlint.Visitor) {
 	r.structRule.AddRules(v)
 	r.fieldRule.AddRules(v)
+	r.opRule.AddRules(v)
 }
 
 // deprecatedFields will map what fields are deprecated in a struct type.
