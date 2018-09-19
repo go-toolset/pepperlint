@@ -3,8 +3,6 @@ package pepperlint
 import (
 	"fmt"
 	"go/ast"
-
-	"github.com/go-toolset/pepperlint/utils"
 )
 
 type testExcludeNameTypeSpecRule struct {
@@ -41,17 +39,17 @@ type testExcludeMethod struct {
 }
 
 func (v testExcludeMethod) ValidateFuncDecl(fnDecl *ast.FuncDecl) error {
-	if !utils.IsMethod(fnDecl) {
+	if !IsMethod(fnDecl) {
 		return nil
 	}
 
 	found := false
 	for _, object := range fnDecl.Recv.List {
-		if ok := utils.IsStruct(object.Type); !ok {
+		if ok := IsStruct(object.Type); !ok {
 			continue
 		}
 
-		name := utils.GetStructName(object.Type)
+		name := GetStructName(object.Type)
 		if name == v.StructName {
 			found = true
 		}

@@ -35,7 +35,7 @@ func (v *Visitor) Visit(node ast.Node) ast.Visitor {
 		return v
 	}
 
-	//log.Printf("VISITING %p %T %v", node, node, node)
+	//Log("VISITING %p %T %v", node, node, node)
 
 	switch t := node.(type) {
 	case ast.Decl:
@@ -43,6 +43,9 @@ func (v *Visitor) Visit(node ast.Node) ast.Visitor {
 	case ast.Expr:
 		// ignored due to visiting of ExprStmt in
 		// visitStmt
+		if binExpr, ok := t.(*ast.BinaryExpr); ok {
+			v.visitBinaryExpr(binExpr)
+		}
 	case ast.Spec:
 		v.visitSpec(t)
 	case ast.Stmt:
@@ -105,7 +108,7 @@ func (v *Visitor) visitExpr(expr ast.Expr) {
 	case *ast.CallExpr:
 		v.visitCallExpr(t)
 	case *ast.BinaryExpr:
-		Log("TODO: visitExpr %T\n", t)
+		v.visitBinaryExpr(t)
 	case *ast.IndexExpr:
 		Log("TODO: visitExpr %T\n", t)
 	case *ast.KeyValueExpr:
@@ -122,7 +125,7 @@ func (v *Visitor) visitSpec(spec ast.Spec) {
 	case *ast.TypeSpec:
 		v.visitTypeSpec(t)
 	case *ast.ValueSpec:
-		//log.Println("TODO: visit *ast.ValueSpec")
+		v.visitValueSpec(t)
 	default:
 		Log("TODO: visitDecl %T\n", t)
 	}
@@ -138,6 +141,10 @@ func (v *Visitor) visitStmt(stmt ast.Stmt) {
 		v.visitExpr(t.X)
 	case *ast.ReturnStmt:
 		v.visitReturnStmt(t)
+	case *ast.IncDecStmt:
+		v.visitIncDecStmt(t)
+	case *ast.RangeStmt:
+		v.visitRangeStmt(t)
 	default:
 		Log("TODO: visitStmt %T\n", t)
 	}
@@ -173,6 +180,12 @@ func (v *Visitor) visitTypeSpec(spec *ast.TypeSpec) {
 		v.visitStructType(t)
 	default:
 		Log("TODO: visitType %T\n", t)
+	}
+}
+
+func (v *Visitor) visitValueSpec(spec *ast.ValueSpec) {
+	if err := v.Rules.ValueSpecRules.ValidateValueSpec(spec); err != nil {
+		v.Errors.Add(err)
 	}
 }
 
@@ -291,6 +304,24 @@ func (v *Visitor) visitFile(f *ast.File) {
 
 func (v *Visitor) visitPackage(pkg *ast.Package) {
 	if err := v.Rules.PackageRules.ValidatePackage(pkg); err != nil {
+		v.Errors.Add(err)
+	}
+}
+
+func (v *Visitor) visitBinaryExpr(expr *ast.BinaryExpr) {
+	if err := v.Rules.BinaryExprRules.ValidateBinaryExpr(expr); err != nil {
+		v.Errors.Add(err)
+	}
+}
+
+func (v *Visitor) visitIncDecStmt(stmt *ast.IncDecStmt) {
+	if err := v.Rules.IncDecStmtRules.ValidateIncDecStmt(stmt); err != nil {
+		v.Errors.Add(err)
+	}
+}
+
+func (v *Visitor) visitRangeStmt(stmt *ast.RangeStmt) {
+	if err := v.Rules.RangeStmtRules.ValidateRangeStmt(stmt); err != nil {
 		v.Errors.Add(err)
 	}
 }

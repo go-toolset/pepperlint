@@ -1,4 +1,4 @@
-package utils
+package pepperlint
 
 import (
 	"go/ast"
@@ -9,6 +9,20 @@ import (
 // struct type.
 func IsStruct(expr ast.Expr) bool {
 	switch t := expr.(type) {
+	// Chcek if it is a selector expression, meaning it potentially
+	// could be an imported shape
+	case *ast.SelectorExpr:
+		ident, ok := t.X.(*ast.Ident)
+		if !ok {
+			return false
+		}
+
+		info := PackagesCache.TypeInfos[ident.Name][t.Sel.Name]
+		if info.Spec == nil {
+			return false
+		}
+
+		return IsStruct(info.Spec.Type)
 	case *ast.StructType:
 		return true
 	case *ast.Ident:
@@ -35,6 +49,20 @@ func IsStruct(expr ast.Expr) bool {
 // GetStructType will return a struct from the given expr.
 func GetStructType(expr ast.Expr) *ast.StructType {
 	switch t := expr.(type) {
+	// Chcek if it is a selector expression, meaning it potentially
+	// could be an imported shape
+	case *ast.SelectorExpr:
+		ident, ok := t.X.(*ast.Ident)
+		if !ok {
+			return nil
+		}
+
+		info := PackagesCache.TypeInfos[ident.Name][t.Sel.Name]
+		if info.Spec == nil {
+			return nil
+		}
+
+		return GetStructType(info.Spec.Type)
 	case *ast.StructType:
 		return t
 	case *ast.Ident:
@@ -58,9 +86,54 @@ func GetStructType(expr ast.Expr) *ast.StructType {
 	return nil
 }
 
+// GetTypeSpec will return the given type spec for an expression. nil will
+// be returned if one could not be found
+func GetTypeSpec(expr ast.Expr) *ast.TypeSpec {
+	switch t := expr.(type) {
+	case *ast.SelectorExpr:
+		ident, ok := t.X.(*ast.Ident)
+		if !ok {
+			return nil
+		}
+
+		info := PackagesCache.TypeInfos[ident.Name][t.Sel.Name]
+		return info.Spec
+	case *ast.Ident:
+		if t.Obj == nil {
+			return nil
+		}
+
+		if t.Obj.Decl == nil {
+			return nil
+		}
+
+		decl := t.Obj.Decl
+		switch d := decl.(type) {
+		case *ast.TypeSpec:
+			return d
+		}
+	case *ast.StarExpr:
+		return GetTypeSpec(t.X)
+	}
+
+	return nil
+}
+
 // GetStructName will return a struct from the given expr.
 func GetStructName(expr ast.Expr) string {
 	switch t := expr.(type) {
+	case *ast.SelectorExpr:
+		ident, ok := t.X.(*ast.Ident)
+		if !ok {
+			return ""
+		}
+
+		info := PackagesCache.TypeInfos[ident.Name][t.Sel.Name]
+		if info.Spec == nil {
+			return ""
+		}
+
+		return info.Spec.Name.Name
 	case *ast.Ident:
 		if t.Obj == nil {
 			return ""
@@ -138,4 +211,19 @@ func GetFieldByName(fieldName string, spec *ast.TypeSpec) *ast.Field {
 	}
 
 	return nil
+}
+
+// GetFieldByIndex will retrieve the ast.Field off of an ast.TypeSpec and
+// field index.
+func GetFieldByIndex(index int, spec *ast.TypeSpec) *ast.Field {
+	if !IsStruct(spec.Type) {
+		return nil
+	}
+
+	sType := GetStructType(spec.Type)
+	if index < 0 || index >= len(sType.Fields.List) {
+		return nil
+	}
+
+	return sType.Fields.List[index]
 }

@@ -72,8 +72,12 @@ func (r *DeprecatedOpRule) getExternalPackageType(expr ast.Expr) ([]pepperlint.T
 
 	switch t := expr.(type) {
 	case *ast.Ident:
+		// if t.Obj is nil, this implies that this could be a function instead of a method
 		if t.Obj == nil {
-			return nil, false
+			infos = append(infos, pepperlint.TypeInfo{
+				PkgName: t.Name,
+			})
+			return infos, true
 		}
 
 		if t.Obj.Decl == nil {
@@ -213,10 +217,14 @@ func (r *DeprecatedOpRule) isSelectorExprDeprecated(sel *ast.SelectorExpr) []err
 	for _, info := range infos {
 		spec := info.Spec
 		pkgOps := pepperlint.PackagesCache.OpInfos[info.PkgName]
-		opInfo := pkgOps[methodName]
+		opInfo, ok := pkgOps[methodName]
+
+		if !ok {
+			continue
+		}
 
 		// Check to see if the type has the associated method name
-		if !opInfo.HasReceiverType(spec) {
+		if spec != nil && !opInfo.HasReceiverType(spec) {
 			continue
 		}
 

@@ -114,3 +114,27 @@ func (e Errors) Error() string {
 
 	return buf.String()
 }
+
+// Count will return the number of errors in the list. If there are any batch error, this will
+// make recursive calls until a non-batch error is found.
+func (e Errors) Count() int {
+	errAmount := 0
+	for _, err := range e {
+		errAmount += count(err)
+	}
+	return errAmount
+}
+
+func count(e error) int {
+	berr, ok := e.(*BatchError)
+	if !ok {
+		return 1
+	}
+
+	errAmount := 0
+	for _, err := range berr.Errors() {
+		errAmount += count(err)
+	}
+
+	return errAmount
+}

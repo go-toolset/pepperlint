@@ -26,14 +26,14 @@ func NewDeprecatedStructRule(fset *token.FileSet) *DeprecatedStructRule {
 // isCompositeLitDeprecated will return whether or not a composite literal type has been
 // deprecated. The first parameter will be used to get the line number from the fileset if
 // an error occurred
-func (r DeprecatedStructRule) isCompositeLitDeprecated(node ast.Node, lit *ast.CompositeLit) error {
+func (r DeprecatedStructRule) isCompositeLitDeprecated(node ast.Node, lit *ast.CompositeLit) []error {
 	switch t := lit.Type.(type) {
 	case *ast.Ident:
 		return r.isIdentDeprecated(node, t)
 	// This case checks struct use of imported packages
 	case *ast.SelectorExpr:
 		if err := r.isSelectorExprDeprecated(node, t); err != nil {
-			return err
+			return []error{err}
 		}
 	}
 
@@ -58,13 +58,15 @@ func (r DeprecatedStructRule) isSelectorExprDeprecated(node ast.Node, expr *ast.
 
 // isIdentDeprecated will return an error upon finding a use of a deprecated structure.
 // The node parameter is used to determine a line number if an error occurred.
-func (r DeprecatedStructRule) isIdentDeprecated(node ast.Node, ident *ast.Ident) error {
+func (r DeprecatedStructRule) isIdentDeprecated(node ast.Node, ident *ast.Ident) []error {
 	var spec *ast.TypeSpec
+	errs := []error{}
 
-	if ident.Obj == nil {
+	if ident.Obj == nil ||
+		ident.Obj.Decl == nil {
 		// not an object meaning we don't care to evaluate whether or not
 		// it is a deprecated shape.
-		return nil
+		return errs
 	}
 
 	switch decl := ident.Obj.Decl.(type) {
@@ -86,23 +88,57 @@ func (r DeprecatedStructRule) isIdentDeprecated(node ast.Node, ident *ast.Ident)
 			id, ok := t.X.(*ast.Ident)
 			if !ok {
 				// expr is not a structure
-				return nil
+				return errs
 			}
 
 			return r.isIdentDeprecated(node, id)
 		default:
-			return nil
+			return errs
 		}
+
+	// occurrs when return parameter is a variable
+	case *ast.AssignStmt:
+		for _, rhs := range decl.Rhs {
+			switch rhsType := rhs.(type) {
+			// pointer to variable
+			case *ast.UnaryExpr:
+				composite, ok := rhsType.X.(*ast.CompositeLit)
+				if !ok {
+					continue
+				}
+
+				if es := r.isCompositeLitDeprecated(ident, composite); len(es) > 0 {
+					errs = append(errs, es...)
+				}
+			case *ast.CompositeLit:
+				if es := r.isCompositeLitDeprecated(ident, rhsType); len(es) > 0 {
+					errs = append(errs, es...)
+				}
+			default:
+				pepperlint.Log("TODO: isIdentDeprecated %T", rhsType)
+			}
+
+		}
+
+		return errs
+
+	case *ast.ValueSpec:
+		if es := r.deprecatedStructUsage(ident, decl.Type); len(es) > 0 {
+			errs = append(errs, es...)
+		}
+
+		return errs
 	default:
-		return nil
+		pepperlint.Log("TODO: deprecated_struct_rule.isIdentDeprecated %T", decl)
+		return errs
 	}
 
 	info := pepperlint.PackagesCache.TypeInfos[r.currentPkgName][spec.Name.Name]
 	if hasDeprecatedComment(info.Doc) {
-		return pepperlint.NewErrorWrap(r.fset, node, fmt.Sprintf("deprecated %q struct used", spec.Name.Name))
+		errs = append(errs, pepperlint.NewErrorWrap(r.fset, node, fmt.Sprintf("deprecated %q struct used", spec.Name.Name)))
 	}
 
-	return nil
+	return errs
 }
 
 // ValidateAssignStmt will take a look to see if a deprecated structure is
@@ -135,6 +171,10 @@ func (r DeprecatedStructRule) validateAssignStmt(expr ast.Expr, rhs ast.Expr) []
 			batchError := err.(*pepperlint.BatchError)
 			return batchError.Errors()
 		}
+
+	// occurs when referencing a type during assignment
+	case *ast.UnaryExpr:
+		return r.validateAssignStmt(expr, t.X)
 	default:
 		pepperlint.Log("TODO: RHS DeprecatedStructRule.ValidateAssignStmt %T %v\n", t, t)
 	}
@@ -157,16 +197,23 @@ func (r DeprecatedStructRule) deprecatedStructUsage(rhs ast.Expr, expr ast.Expr)
 			return errs
 		}
 
-		decl, ok := tstruct.Obj.Decl.(*ast.TypeSpec)
-		if !ok {
-			return errs
-		}
+		switch decl := tstruct.Obj.Decl.(type) {
+		case *ast.ValueSpec:
+			errs = append(errs, r.deprecatedStructUsage(rhs, decl.Type)...)
 
-		info := pepperlint.PackagesCache.TypeInfos[r.currentPkgName][decl.Name.Name]
-		if hasDeprecatedComment(info.Doc) {
-			errs = append(errs, pepperlint.NewErrorWrap(r.fset, rhs, fmt.Sprintf("deprecated %q struct used", decl.Name.Name)))
-		} else if es := r.checkTypeAliases(rhs, decl.Type); len(es) > 0 {
-			errs = append(errs, es...)
+		case *ast.TypeSpec:
+
+			decl, ok := tstruct.Obj.Decl.(*ast.TypeSpec)
+			if !ok {
+				return errs
+			}
+
+			info := pepperlint.PackagesCache.TypeInfos[r.currentPkgName][decl.Name.Name]
+			if hasDeprecatedComment(info.Doc) {
+				errs = append(errs, pepperlint.NewErrorWrap(r.fset, rhs, fmt.Sprintf("deprecated %q struct used", decl.Name.Name)))
+			} else if es := r.checkTypeAliases(rhs, decl.Type); len(es) > 0 {
+				errs = append(errs, es...)
+			}
 		}
 
 	// this case will happen when a imported package structure is being used.
@@ -176,6 +223,16 @@ func (r DeprecatedStructRule) deprecatedStructUsage(rhs ast.Expr, expr ast.Expr)
 		if err := r.isSelectorExprDeprecated(rhs, tstruct); err != nil {
 			errs = append(errs, err)
 		}
+	case *ast.ArrayType:
+		if es := r.deprecatedStructUsage(rhs, tstruct.Elt); len(es) > 0 {
+			errs = append(errs, es...)
+		}
+	case *ast.StarExpr:
+		if es := r.deprecatedStructUsage(rhs, tstruct.X); len(es) > 0 {
+			errs = append(errs, es...)
+		}
+	default:
+		pepperlint.Log("TODO: deprecated_struct_rule.deprecatedStructUsage %T", tstruct)
 	}
 
 	return errs
@@ -209,7 +266,7 @@ func (r DeprecatedStructRule) checkTypeAliases(rhs ast.Node, expr ast.Expr) []er
 	return errs
 }
 
-// ValidateCallExpr ...
+// ValidateCallExpr will ensure a deprecated struct is not being passed as a parameter
 func (r DeprecatedStructRule) ValidateCallExpr(expr *ast.CallExpr) error {
 	batchError := pepperlint.NewBatchError()
 
@@ -227,8 +284,8 @@ func (r DeprecatedStructRule) validateCallExpr(node ast.Node, arg ast.Expr) []er
 
 	switch t := arg.(type) {
 	case *ast.CompositeLit:
-		if err := r.isCompositeLitDeprecated(arg, t); err != nil {
-			errs = append(errs, err)
+		if es := r.isCompositeLitDeprecated(arg, t); len(es) > 0 {
+			errs = append(errs, es...)
 		}
 	case *ast.UnaryExpr:
 		if es := r.validateCallExpr(arg, t.X); len(es) > 0 {
@@ -263,16 +320,16 @@ func (r DeprecatedStructRule) ValidateReturnStmt(stmt *ast.ReturnStmt) error {
 	for _, result := range stmt.Results {
 		switch t := result.(type) {
 		case *ast.CompositeLit:
-			if err := r.isCompositeLitDeprecated(result, t); err != nil {
-				batchError.Add(err)
+			if es := r.isCompositeLitDeprecated(result, t); len(es) > 0 {
+				batchError.Add(es...)
 			}
 		case *ast.Ident:
-			if err := r.isIdentDeprecated(result, t); err != nil {
-				batchError.Add(err)
+			if es := r.isIdentDeprecated(result, t); len(es) > 0 {
+				batchError.Add(es...)
 			}
 
 		default:
-			pepperlint.Log("DeprecatedStructRule.ValidateReturnStmt: %T %v\n", t, t)
+			pepperlint.Log("TODO: DeprecatedStructRule.ValidateReturnStmt: %T", t)
 		}
 	}
 
@@ -287,8 +344,8 @@ func (r DeprecatedStructRule) ValidateFuncDecl(decl *ast.FuncDecl) error {
 	for _, param := range decl.Type.Params.List {
 		switch t := param.Type.(type) {
 		case *ast.Ident:
-			if err := r.isIdentDeprecated(param, t); err != nil {
-				batchError.Add(err)
+			if es := r.isIdentDeprecated(param, t); len(es) > 0 {
+				batchError.Add(es...)
 			}
 
 		case *ast.StarExpr:
@@ -298,8 +355,8 @@ func (r DeprecatedStructRule) ValidateFuncDecl(decl *ast.FuncDecl) error {
 				continue
 			}
 
-			if err := r.isIdentDeprecated(param, id); err != nil {
-				batchError.Add(err)
+			if es := r.isIdentDeprecated(param, id); len(es) > 0 {
+				batchError.Add(es...)
 			}
 
 		// This cases is to see if an imported deprecated struct
@@ -324,8 +381,8 @@ func (r DeprecatedStructRule) ValidateFuncDecl(decl *ast.FuncDecl) error {
 	for _, result := range decl.Type.Results.List {
 		switch t := result.Type.(type) {
 		case *ast.Ident:
-			if err := r.isIdentDeprecated(result, t); err != nil {
-				batchError.Add(err)
+			if es := r.isIdentDeprecated(result, t); len(es) > 0 {
+				batchError.Add(es...)
 			}
 
 		// Pointer case
@@ -336,8 +393,8 @@ func (r DeprecatedStructRule) ValidateFuncDecl(decl *ast.FuncDecl) error {
 				continue
 			}
 
-			if err := r.isIdentDeprecated(result, id); err != nil {
-				batchError.Add(err)
+			if es := r.isIdentDeprecated(result, id); len(es) > 0 {
+				batchError.Add(es...)
 			}
 
 		case *ast.SelectorExpr:
@@ -359,7 +416,7 @@ func (r *DeprecatedStructRule) ValidatePackage(pkg *ast.Package) error {
 	return nil
 }
 
-// ValidateTypeSpec ...
+// ValidateTypeSpec will ensure that the type spec's type isn't a deprecated structure.
 func (r DeprecatedStructRule) ValidateTypeSpec(spec *ast.TypeSpec) error {
 	batchError := pepperlint.NewBatchError()
 
@@ -371,6 +428,45 @@ func (r DeprecatedStructRule) ValidateTypeSpec(spec *ast.TypeSpec) error {
 	default:
 		pepperlint.Log("TODO: DeprecatedStructRule.ValidateTypeSpec %T", t)
 	}
+
+	return batchError.Return()
+}
+
+// ValidateValueSpec will check structures used as values are not deprecated structs.
+func (r DeprecatedStructRule) ValidateValueSpec(spec *ast.ValueSpec) error {
+	batchError := pepperlint.NewBatchError()
+
+	switch specType := spec.Type.(type) {
+	case *ast.Ident:
+		if es := r.isIdentDeprecated(spec, specType); len(es) > 0 {
+			batchError.Add(es...)
+		}
+	case *ast.StarExpr:
+		id, ok := specType.X.(*ast.Ident)
+		if !ok {
+			break
+		}
+
+		if es := r.isIdentDeprecated(spec, id); len(es) > 0 {
+			batchError.Add(es...)
+		}
+	}
+
+	return batchError.Return()
+}
+
+// ValidateBinaryExpr will ensure no deprecated struct is being used on either the LHS
+// or RHS of the expression.
+func (r DeprecatedStructRule) ValidateBinaryExpr(expr *ast.BinaryExpr) error {
+	batchError := pepperlint.NewBatchError()
+
+	if es := r.deprecatedStructUsage(expr.X, expr.X); len(es) > 0 {
+		batchError.Add(es...)
+	}
+	if es := r.deprecatedStructUsage(expr.Y, expr.Y); len(es) > 0 {
+		batchError.Add(es...)
+	}
+
 	return batchError.Return()
 }
 
@@ -378,11 +474,13 @@ func (r DeprecatedStructRule) ValidateTypeSpec(spec *ast.TypeSpec) error {
 func (r *DeprecatedStructRule) AddRules(v *pepperlint.Visitor) {
 	rules := pepperlint.Rules{
 		AssignStmtRules: pepperlint.AssignStmtRules{r},
+		BinaryExprRules: pepperlint.BinaryExprRules{r},
 		CallExprRules:   pepperlint.CallExprRules{r},
 		ReturnStmtRules: pepperlint.ReturnStmtRules{r},
 		FuncDeclRules:   pepperlint.FuncDeclRules{r},
 		PackageRules:    pepperlint.PackageRules{r},
 		TypeSpecRules:   pepperlint.TypeSpecRules{r},
+		ValueSpecRules:  pepperlint.ValueSpecRules{r},
 	}
 
 	v.Rules.Merge(rules)
