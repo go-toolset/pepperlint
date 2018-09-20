@@ -5,11 +5,11 @@ all: unit
 
 unit: build verify
 	@echo "Testing all pepperlint packages"
-	@go test ./...
+	@go test -v ./...
 
 unit-race: build verify
 	@echo "Testing all pepperlint packages with race enabled"
-	@go test -race -cpu=1,2,4 ./...
+	@go test -v -race -cpu=1,2,4 ./...
 
 build:
 	@echo "Building pepperlint packages"
