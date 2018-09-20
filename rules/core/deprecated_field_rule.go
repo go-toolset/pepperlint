@@ -6,13 +6,47 @@ import (
 	"go/token"
 
 	"github.com/go-toolset/pepperlint"
-	"github.com/go-toolset/pepperlint/utils"
 )
 
 // DeprecatedFieldRule will check usage of a deprecated field by field name.
 type DeprecatedFieldRule struct {
 	fset           *token.FileSet
 	currentPkgName string
+}
+
+type fieldInfo struct {
+	Name  string
+	Spec  *ast.TypeSpec
+	Elts  []ast.Expr
+	LHS   ast.Expr
+	RHS   ast.Expr
+	Field *ast.Field
+}
+
+type fieldInfos []fieldInfo
+
+// GetByVarName will iterate through all the fieldInfos and find the info associated
+// with the given var name. If one cannot be found, false will be returned
+func (f fieldInfos) GetByVarName(name string) (fieldInfo, bool) {
+	for _, info := range f {
+		if info.Name == name {
+			return info, true
+		}
+
+	}
+
+	return fieldInfo{}, false
+}
+
+func (f fieldInfos) GetByField() (fieldInfo, bool) {
+	// weird case here where instead of info being a list of infos
+	// a single info will be returned due to it being an accessor in
+	// a method.
+	if len(f) == 1 && f[0].Field != nil {
+		return f[0], true
+	}
+
+	return fieldInfo{}, false
 }
 
 // NewDeprecatedFieldRule will return a new deprecation rule for fields.
@@ -24,335 +58,270 @@ func NewDeprecatedFieldRule(fset *token.FileSet) *DeprecatedFieldRule {
 	}
 }
 
-// containsDeprecatedFields will look inside a composite literal and check
-// if any fields that contain a deprecated comment will return the number of
-// deprecated fields in use
-func (r DeprecatedFieldRule) containsDeprecatedFields(node ast.Node, cl *ast.CompositeLit) []error {
+func (r DeprecatedFieldRule) isDeprecatedField(expr *ast.SelectorExpr) error {
+	ident, ok := expr.X.(*ast.Ident)
+	if !ok {
+		return nil
+	}
+
+	infos := r.getFieldInfo(expr.X)
+	if len(infos) == 0 {
+		return nil
+	}
+
+	info, ok := infos.GetByVarName(ident.Name)
+	if !ok {
+		// Check to see if the info is a field being accessed in object's method
+		if info, ok = infos.GetByField(); !ok {
+			return nil
+		}
+	}
+
+	depField := pepperlint.GetFieldByName(expr.Sel.Name, info.Spec)
+	if depField == nil {
+		return nil
+	}
+
+	if hasDeprecatedComment(depField.Doc) {
+		return pepperlint.NewErrorWrap(r.fset, expr.Sel, fmt.Sprintf("deprecated %q field usage", expr.Sel.Name))
+	}
+	return nil
+}
+
+// checkBinaryExprFields will iterate through the binary expr lhs and rhs to determine
+// if deprecated fields are being used
+func (r DeprecatedFieldRule) checkBinaryExprFields(bexpr *ast.BinaryExpr) []error {
 	errs := []error{}
-	var s *ast.StructType
+	exprs := []ast.Expr{bexpr.X, bexpr.Y}
 
-	switch t := cl.Type.(type) {
-	case *ast.Ident:
-		s = utils.GetStructType(t)
-
-	// using imported package field
-	case *ast.SelectorExpr:
-		pkgName := ""
-		structName := ""
-
-		// attempt to get the package name from an *ast.Ident
-		switch ident := t.X.(type) {
-		case *ast.Ident:
-			pkgName = ident.Name
-		default:
-			return nil
-		}
-
-		structName = t.Sel.Name
-
-		info, ok := pepperlint.PackagesCache.TypeInfos[pkgName][structName]
-		if !ok {
-			// TODO: Should probably return regular error like could not find pkg.foo
-			return nil
-		}
-
-		if info.Spec == nil {
-			return nil
-		}
-
-		switch st := info.Spec.Type.(type) {
-		case *ast.StructType:
-			s = st
-		default:
-			return nil
-		}
-	default:
-		pepperlint.Log("TODO: deprecated_field_rule.containsDeprecatedField %T", t)
-	}
-
-	if s == nil {
-		return nil
-	}
-
-	depFields := getDeprecatedFields(s.Fields)
-	for i, elt := range cl.Elts {
-		if isDeprecatedField(depFields, i, elt) {
-			names := s.Fields.List[i].Names
-
-			structNames := make([]string, len(names))
-			for i := 0; i < len(names); i++ {
-				structNames[i] = names[i].Name
+	// check each expression if it is a selector expr. If it is a selector expr
+	// it may be using a field that may be deprecated
+	for _, expr := range exprs {
+		switch exprType := expr.(type) {
+		case *ast.SelectorExpr:
+			ident, ok := exprType.X.(*ast.Ident)
+			if !ok {
+				continue
 			}
 
-			lineNumber := ast.Node(elt)
-			if node != nil {
-				lineNumber = node
+			infos := r.getFieldInfo(exprType.X)
+			if len(infos) == 0 {
+				continue
 			}
 
-			errs = append(errs, pepperlint.NewErrorWrap(r.fset, lineNumber, fmt.Sprintf("deprecated %v field used in struct initialization", structNames)))
-		}
-	}
+			info, ok := infos.GetByVarName(ident.Name)
+			if !ok {
+				continue
+			}
 
-	if len(errs) == 0 {
-		return nil
+			depField := pepperlint.GetFieldByName(exprType.Sel.Name, info.Spec)
+			if depField == nil {
+				continue
+			}
+
+			if hasDeprecatedComment(depField.Doc) {
+				errs = append(errs, pepperlint.NewErrorWrap(r.fset, exprType.Sel, fmt.Sprintf("deprecated %q field usage", exprType.Sel.Name)))
+			}
+		case *ast.BinaryExpr:
+			if es := r.checkBinaryExprFields(exprType); len(es) > 0 {
+				errs = append(errs, es...)
+			}
+		case *ast.CallExpr:
+			if err := r.ValidateCallExpr(exprType); err != nil {
+				berr := err.(*pepperlint.BatchError)
+				errs = append(errs, berr.Errors()...)
+			}
+		default:
+			pepperlint.Log("TODO: checkBinaryExprFields %T", exprType)
+		}
 	}
 
 	return errs
 }
 
-// isDeprecatedField evaluates whether or not a field is deprecated by looking at
-// either the deprecated field being set during struct initialization or by setting
-// the index of that deprecated field.
-func isDeprecatedField(depFields deprecatedCache, index int, expr ast.Expr) bool {
+// getFieldInfo will inspect the expr and attempt to pull out necessary information
+// about the expr to ensure no deprecated field is used.
+func (r DeprecatedFieldRule) getFieldInfo(expr ast.Expr) fieldInfos {
 	switch t := expr.(type) {
-	// this case happens when setting the index of the field, ie
-	//
-	// f := Foo {
-	//   123,
-	// }
-	case *ast.BasicLit:
-		// the LHS of this expr should never occur, but may occur due to some bug.
-		if index < len(depFields.IndexLookup) && depFields.IndexLookup[index] {
-			return true
+	case *ast.Ident:
+		if t.Obj == nil || t.Obj.Decl == nil {
+			return nil
 		}
 
-	// this case occurrs when struct initialization with setting fields by their
-	// name, ie
-	//
-	// f := Foo {
-	//   Field: 123,
-	// }
-	case *ast.KeyValueExpr:
-		switch keyType := t.Key.(type) {
-		case *ast.Ident:
-			if _, ok := depFields.KeyLookup[keyType.Name]; ok {
-				return true
-			}
-		}
+		return r.getFieldInfoFromDecl(t.Obj.Decl)
 	default:
-		pepperlint.Log("TODO: isDeprecatedField %T\n", t)
+		pepperlint.Log("TODO: getInternalTypeSpec %T", t)
 	}
 
-	return false
+	return nil
 }
 
-func (r DeprecatedFieldRule) isSelectorExprDeprecated(node ast.Node, lhsName string, e ast.Expr) []error {
-	errs := []error{}
-	t, decl, es := r.getDeclFromSelectorExpr(e)
+func (r DeprecatedFieldRule) getFieldInfoFromDecl(decl interface{}) fieldInfos {
+	infos := fieldInfos{}
 
-	if len(es) > 0 {
-		errs = append(errs, es...)
-	}
+	switch t := decl.(type) {
+	case *ast.AssignStmt:
 
-	if decl == nil {
-		return errs
-	}
+		for i := 0; i < len(t.Lhs) && i < len(t.Rhs); i++ {
+			info := fieldInfo{}
+			populated := false
 
-	lhsIndex := -1
-	// Grab the proper lhs to rhs. This is done by
-	// find the lhs name and map that to an index
-	for i, lhs := range decl.Lhs {
-		lhsIdent, ok := lhs.(*ast.Ident)
-		if !ok {
-			continue
+			switch lhs := t.Lhs[i].(type) {
+			case *ast.SelectorExpr:
+				info.LHS = lhs
+				populated = true
+			case *ast.Ident:
+				// Store variable names incase it is needed later to determine which
+				// TypeSpec to grab.
+				info.Name = lhs.Name
+			case *ast.IndexExpr:
+				info.LHS = lhs
+				populated = true
+			default:
+				pepperlint.Log("TODO: lhs.getTypeSpecFromDecl %T", lhs)
+			}
+
+			switch rhs := t.Rhs[i].(type) {
+			case *ast.CompositeLit:
+				switch rhsType := rhs.Type.(type) {
+				// RHS is a imported package
+				case *ast.SelectorExpr:
+					spec := pepperlint.GetTypeSpec(rhsType)
+					info.Spec = spec
+					info.Elts = rhs.Elts
+					populated = true
+				case *ast.Ident:
+					if rhsType.Obj == nil || rhsType.Obj.Decl == nil {
+						break
+					}
+
+					info.Elts = rhs.Elts
+					populated = true
+
+					var ok bool
+					if info.Spec, ok = rhsType.Obj.Decl.(*ast.TypeSpec); !ok {
+						break
+					}
+
+				default:
+					pepperlint.Log("TODO: rhsType.inner.getTypeSpecFromDecl %T", rhsType)
+				}
+			case *ast.CallExpr:
+				info.RHS = rhs
+				populated = true
+			case *ast.IndexExpr:
+				info.RHS = rhs
+				populated = true
+			default:
+				pepperlint.Log("TODO: rhsType.getTypeSpecFromDecl %T", rhs)
+			}
+
+			if populated {
+				infos = append(infos, info)
+			}
 		}
-
-		if lhsIdent.Name == lhsName {
-			lhsIndex = i
-			break
-		}
-	}
-
-	if lhsIndex == -1 {
-		return errs
-	}
-
-	// this occurs when there are more lhs then rhs.
-	//	* k, v := range m
-	//	* v, ok := m[key]
-	//	* v, ok := iface.(objType)
-	if lhsIndex >= len(decl.Rhs) {
-		lhsIndex = len(decl.Rhs) - 1
-	}
-
-	switch rhs := decl.Rhs[lhsIndex].(type) {
-	case *ast.CompositeLit:
-		if es := r.containsDeprecatedFields(node, rhs); len(es) > 0 {
-			errs = append(errs, es...)
-		}
+	case *ast.Field:
+		infos = append(infos, fieldInfo{
+			Spec:  pepperlint.GetTypeSpec(t.Type),
+			Field: t,
+		})
 	default:
-		pepperlint.Log("TODO: LHS DeprecatedFieldRule.ValidateAssignStmt %T\n", t)
+		pepperlint.Log("TODO: getTypeSpecFromDecl %T", t)
 	}
 
-	return errs
-}
-func (r DeprecatedFieldRule) checkDeprecatedFieldUse(t *ast.SelectorExpr, field *ast.Field) []error {
-	errs := []error{}
-
-	s := utils.GetStructType(field.Type)
-	if s == nil {
-		return nil
-	}
-
-	depFields := getDeprecatedFields(s.Fields)
-	// Check the selector name, which is struct.field = somevalue, if it is
-	// in the deprecated field container.
-	if _, ok := depFields.KeyLookup[t.Sel.Name]; ok {
-		errs = append(errs, pepperlint.NewErrorWrap(r.fset, t.Sel, fmt.Sprintf("deprecated %q field usage", t.Sel.Name)))
-	}
-
-	if len(errs) == 0 {
-		return nil
-	}
-
-	return errs
-}
-
-func (r DeprecatedFieldRule) getDeclFromSelectorExpr(e ast.Expr) (*ast.SelectorExpr, *ast.AssignStmt, []error) {
-	t, ok := e.(*ast.SelectorExpr)
-	if !ok {
-		return nil, nil, nil
-	}
-
-	expr, ok := t.X.(*ast.Ident)
-	if !ok ||
-		expr.Obj == nil ||
-		expr.Obj.Decl == nil {
-
-		return t, nil, nil
-	}
-
-	// This occurrs when field assignment occurrs on an object
-	if field, found := expr.Obj.Decl.(*ast.Field); found {
-		return t, nil, r.checkDeprecatedFieldUse(t, field)
-	}
-
-	// Get object declaration to get struct definition. This will contain
-	// the struct information such as which fields are deprecated.
-	decl, ok := expr.Obj.Decl.(*ast.AssignStmt)
-	if !ok {
-		return t, nil, nil
-	}
-
-	return t, decl, nil
-}
-
-func (r DeprecatedFieldRule) isReturnSelectorExprDeprecated(fset *token.FileSet, e ast.Expr) []error {
-	errs := []error{}
-
-	switch t := e.(type) {
-	case *ast.SelectorExpr:
-		switch x := t.X.(type) {
-		case *ast.Ident:
-			if x.Obj == nil || x.Obj.Decl == nil {
-				return errs
-			}
-
-			switch decl := x.Obj.Decl.(type) {
-			case *ast.AssignStmt:
-				if es := r.isAssignStmtDeprecated(t.Sel, t.Sel.Name, decl); len(es) > 0 {
-					errs = append(errs, es...)
-				}
-
-			// Occurs when using imported package structure field
-			case *ast.Field:
-				field, ok := x.Obj.Decl.(*ast.Field)
-				if !ok {
-					return errs
-				}
-
-				// gets the package.structname
-				selExpr, ok := field.Type.(*ast.SelectorExpr)
-				if !ok {
-					return errs
-				}
-
-				// package name identifier
-				pkgIdent, ok := selExpr.X.(*ast.Ident)
-				if !ok {
-					return errs
-				}
-
-				// get struct info from the cache
-				info := pepperlint.PackagesCache.TypeInfos[pkgIdent.Name][selExpr.Sel.Name]
-
-				depField := utils.GetFieldByName(t.Sel.Name, info.Spec)
-				if depField == nil {
-					return errs
-				}
-
-				if hasDeprecatedComment(depField.Doc) {
-					errs = append(errs, pepperlint.NewErrorWrap(r.fset, t.Sel, fmt.Sprintf("deprecated %q field usage", t.Sel.Name)))
-				}
-			}
-		}
-	}
-
-	return errs
-}
-
-func (r DeprecatedFieldRule) isAssignStmtDeprecated(node ast.Node, fieldName string, stmt *ast.AssignStmt) []error {
-	errs := []error{}
-
-	for _, stmtRHS := range stmt.Rhs {
-		switch rhs := stmtRHS.(type) {
-		case *ast.CompositeLit:
-			if !utils.IsStruct(rhs.Type) {
-				continue
-			}
-
-			s := utils.GetStructType(rhs.Type)
-			if s == nil {
-				continue
-			}
-
-			depFields := getDeprecatedFields(s.Fields)
-			// Check the selector name, which is struct.field = somevalue, if it is
-			// in the deprecated field container.
-			if _, ok := depFields.KeyLookup[fieldName]; ok {
-				errs = append(errs, pepperlint.NewErrorWrap(r.fset, node, fmt.Sprintf("deprecated %q field usage", fieldName)))
-			}
-		default:
-			pepperlint.Log("TODO: LHS DeprecatedFieldRule.ValidateAssignStmt %T\n", rhs)
-		}
-	}
-
-	return errs
+	return infos
 }
 
 // ValidateAssignStmt will check to see if a deprecated field is being set or used.
 func (r DeprecatedFieldRule) ValidateAssignStmt(stmt *ast.AssignStmt) error {
 	batchError := pepperlint.NewBatchError()
 
-	// checks LHS for any selector expressions. If the struct field that
-	// is being used is deprecated, the error will be added to the batch
-	// error.
-	for _, lhs := range stmt.Lhs {
-		lhsType, ok := lhs.(*ast.SelectorExpr)
-		if !ok {
-			continue
-		}
-
-		ident, ok := lhsType.X.(*ast.Ident)
-		if !ok {
-			continue
-		}
-
-		if errs := r.isSelectorExprDeprecated(ident, ident.Name, lhs); len(errs) > 0 {
-			batchError.Add(errs...)
-		}
+	infos := r.getFieldInfoFromDecl(stmt)
+	if len(infos) == 0 {
+		return nil
 	}
 
-	// check to see if any struct initialized objects contain any deprecated field
-	// being used
-	for _, rhs := range stmt.Rhs {
-		switch t := rhs.(type) {
-		case *ast.CompositeLit:
-			if errs := r.containsDeprecatedFields(nil, t); len(errs) > 0 {
-				batchError.Add(errs...)
+	for _, info := range infos {
+
+		// Check LHS field usage during assignment
+		if info.LHS != nil {
+			switch lhsType := info.LHS.(type) {
+			case *ast.SelectorExpr:
+				if err := r.isDeprecatedField(lhsType); err != nil {
+					batchError.Add(err)
+				}
+			case *ast.IndexExpr:
+				switch t := lhsType.X.(type) {
+				case *ast.SelectorExpr:
+					if err := r.isDeprecatedField(t); err != nil {
+						batchError.Add(err)
+					}
+				default:
+					pepperlint.Log("TODO: deprecated_field_rule.ValidateAssignStmt %T", t)
+				}
 			}
-		default:
-			pepperlint.Log("TODO: RHS DeprecatedFieldRule.ValidateAssignStmt %T %v\n", t, t)
+		}
+
+		if info.RHS != nil {
+			switch rhsType := info.RHS.(type) {
+			case *ast.CallExpr:
+				if err := r.ValidateCallExpr(rhsType); err != nil {
+					berr := err.(*pepperlint.BatchError)
+					batchError.Add(berr.Errors()...)
+				}
+			case *ast.SelectorExpr:
+				if err := r.isDeprecatedField(rhsType); err != nil {
+					batchError.Add(err)
+				}
+			case *ast.IndexExpr:
+				switch t := rhsType.X.(type) {
+				case *ast.SelectorExpr:
+					if err := r.isDeprecatedField(t); err != nil {
+						batchError.Add(err)
+					}
+				default:
+					pepperlint.Log("TODO: deprecated_field_rule.ValidateAssignStmt %T", t)
+				}
+			}
+		}
+
+		// This function will only care about fields being set, which is the Elts field.
+		if info.Spec == nil || !pepperlint.IsStruct(info.Spec.Type) {
+			continue
+		}
+
+		// iterate through elts, if there are any, that will be checked to see if
+		// any field declared either through KeyValue or Index will return the appropriate
+		// error.
+		for i, elt := range info.Elts {
+			switch t := elt.(type) {
+			// Occurs when struct initializing with field names
+			case *ast.KeyValueExpr:
+				switch keyType := t.Key.(type) {
+				case *ast.Ident:
+					depField := pepperlint.GetFieldByName(keyType.Name, info.Spec)
+					if depField == nil {
+						continue
+					}
+
+					if hasDeprecatedComment(depField.Doc) {
+						batchError.Add(pepperlint.NewErrorWrap(r.fset, elt, fmt.Sprintf("deprecated %q field usage", keyType.Name)))
+					}
+				}
+
+			case *ast.BasicLit, *ast.CompositeLit:
+				depField := pepperlint.GetFieldByIndex(i, info.Spec)
+				if depField == nil {
+					continue
+				}
+
+				if hasDeprecatedComment(depField.Doc) {
+					batchError.Add(pepperlint.NewErrorWrap(r.fset, elt, fmt.Sprintf("deprecated %v field usage", depField.Names)))
+				}
+
+			default:
+				pepperlint.Log("TODO: ValidateAssignStmt %T", t)
+			}
 		}
 	}
 
@@ -365,17 +334,12 @@ func (r DeprecatedFieldRule) ValidateCallExpr(expr *ast.CallExpr) error {
 	batchError := pepperlint.NewBatchError()
 
 	for _, arg := range expr.Args {
+
 		switch t := arg.(type) {
 		case *ast.SelectorExpr:
-			ident, ok := t.X.(*ast.Ident)
-			if !ok {
-				continue
+			if err := r.isDeprecatedField(t); err != nil {
+				batchError.Add(err)
 			}
-
-			if errs := r.isSelectorExprDeprecated(t.Sel, ident.Name, t); len(errs) > 0 {
-				batchError.Add(errs...)
-			}
-
 		default:
 			pepperlint.Log("TODO: dep_field_rule.ValidateCallExpr: %T %v", t, t)
 		}
@@ -390,8 +354,13 @@ func (r DeprecatedFieldRule) ValidateReturnStmt(stmt *ast.ReturnStmt) error {
 	batchError := pepperlint.NewBatchError()
 
 	for _, result := range stmt.Results {
-		if errs := r.isReturnSelectorExprDeprecated(r.fset, result); len(errs) > 0 {
-			batchError.Add(errs...)
+		switch t := result.(type) {
+		case *ast.SelectorExpr:
+			if err := r.isDeprecatedField(t); err != nil {
+				batchError.Add(err)
+			}
+		default:
+			pepperlint.Log("TODO: deprecated_field_rule.ValidateReturnStmt %T", t)
 		}
 	}
 
@@ -405,13 +374,68 @@ func (r *DeprecatedFieldRule) ValidatePackage(pkg *ast.Package) error {
 	return nil
 }
 
+// ValidateIncDecStmt will ensure that deprecated fields that utilize ++ or -- will
+// return an error.
+func (r DeprecatedFieldRule) ValidateIncDecStmt(stmt *ast.IncDecStmt) error {
+	batchError := pepperlint.NewBatchError()
+
+	switch t := stmt.X.(type) {
+	case *ast.SelectorExpr:
+		if err := r.isDeprecatedField(t); err != nil {
+			batchError.Add(err)
+		}
+	case *ast.IndexExpr:
+		switch expr := t.X.(type) {
+		case *ast.SelectorExpr:
+			if err := r.isDeprecatedField(expr); err != nil {
+				batchError.Add(err)
+			}
+		}
+	default:
+		pepperlint.Log("TODO: ValidateIncDecExpr %T", t)
+	}
+
+	return batchError.Return()
+}
+
+// ValidateBinaryExpr will ensure that neither the LHS or RHS of the expr uses a
+// deprecated field
+func (r DeprecatedFieldRule) ValidateBinaryExpr(expr *ast.BinaryExpr) error {
+	batchError := pepperlint.NewBatchError()
+
+	if errs := r.checkBinaryExprFields(expr); len(errs) > 0 {
+		batchError.Add(errs...)
+	}
+
+	return batchError.Return()
+}
+
+// ValidateRangeStmt will ensure that deprecated fields are not used within a
+// range statement.
+func (r DeprecatedFieldRule) ValidateRangeStmt(expr *ast.RangeStmt) error {
+	batchError := pepperlint.NewBatchError()
+
+	// TODO Also check if key or value is being assigned to a deprecated field
+	switch t := expr.X.(type) {
+	case *ast.SelectorExpr:
+		if err := r.isDeprecatedField(t); err != nil {
+			batchError.Add(err)
+		}
+	}
+
+	return batchError.Return()
+}
+
 // AddRules will add the DeprecatedFieldRule to the given visitor
 func (r *DeprecatedFieldRule) AddRules(v *pepperlint.Visitor) {
 	rules := pepperlint.Rules{
 		AssignStmtRules: pepperlint.AssignStmtRules{r},
+		BinaryExprRules: pepperlint.BinaryExprRules{r},
 		CallExprRules:   pepperlint.CallExprRules{r},
 		PackageRules:    pepperlint.PackageRules{r},
+		IncDecStmtRules: pepperlint.IncDecStmtRules{r},
 		ReturnStmtRules: pepperlint.ReturnStmtRules{r},
+		RangeStmtRules:  pepperlint.RangeStmtRules{r},
 	}
 
 	v.Rules.Merge(rules)

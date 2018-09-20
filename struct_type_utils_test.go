@@ -1,11 +1,11 @@
-package utils_test
+package pepperlint_test
 
 import (
 	"go/ast"
 	"reflect"
 	"testing"
 
-	"github.com/go-toolset/pepperlint/utils"
+	"github.com/go-toolset/pepperlint"
 )
 
 func TestIsStruct(t *testing.T) {
@@ -39,7 +39,7 @@ func TestIsStruct(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			if e, a := c.expected, utils.IsStruct(c.expr); e != a {
+			if e, a := c.expected, pepperlint.IsStruct(c.expr); e != a {
 				t.Errorf("expected %v, but received %v", e, a)
 			}
 		})
@@ -81,7 +81,7 @@ func TestGetStructType(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			if e, a := c.expected, utils.GetStructType(c.expr); !reflect.DeepEqual(e, a) {
+			if e, a := c.expected, pepperlint.GetStructType(c.expr); !reflect.DeepEqual(e, a) {
 				t.Errorf("expected %v, but received %v", e, a)
 			}
 		})

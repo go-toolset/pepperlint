@@ -18,7 +18,28 @@ func TestDeprecatedStructRule(t *testing.T) {
 		expectedErrors int
 	}{
 		{
-			name: "simple_deprecated_field",
+			name: "simple_deprecated_struct",
+			code: `package foo
+
+// Foo fake docs here
+// Deprecated: use Bar instead
+type Foo struct {
+	Field int32
+}
+
+func deprecated() interface{} {
+	f := Foo{
+		Field: 123,
+	}
+}
+			`,
+			rulesFn: func(fset *token.FileSet) *core.DeprecatedStructRule {
+				return core.NewDeprecatedStructRule(fset)
+			},
+			expectedErrors: 1,
+		},
+		{
+			name: "simple_deprecated_struct_pointers",
 			code: `package foo
 
 // Foo fake docs here
@@ -35,34 +56,157 @@ type Qux Foo
 
 type Baz Qux
 
-func deprecated() int32 {
-	f := Foo{
+func deprecated() interface{} {
+	fPtr := &Foo{
 		Field: 123,
 	}
 
-	f = Foo{
-		123,
+	var moo *Foo
+
+	if moo == nil {
 	}
-
-	b := Baz{}
-
-	check(Foo{})
-	checkPtr(&Foo{})
-	return Foo{}
-}
-
-func check(foo Foo) Foo {
-	return foo
-}
-
-func checkPtr(foo *Foo) *Foo {
-	return foo
-}
-			`,
+}`,
 			rulesFn: func(fset *token.FileSet) *core.DeprecatedStructRule {
 				return core.NewDeprecatedStructRule(fset)
 			},
-			expectedErrors: 10,
+			expectedErrors: 3,
+		},
+		{
+			name: "simple_deprecated_struct_array",
+			code: `package foo
+
+// Foo fake docs here
+// Deprecated: use Bar instead
+type Foo struct {
+	Field int32
+}
+
+type Bar struct {
+	Field int64
+}
+
+type Qux Foo
+
+type Baz Qux
+
+func deprecated() interface{} {
+	fArray := []Foo{
+		{},
+	}
+
+	fPtrArray := []*Foo{
+		{},
+	}
+
+	bazArray := []Baz{
+		{},
+	}
+
+	bazPtrArray := []*Baz{
+		{},
+	}
+}`,
+			rulesFn: func(fset *token.FileSet) *core.DeprecatedStructRule {
+				return core.NewDeprecatedStructRule(fset)
+			},
+			expectedErrors: 4,
+		},
+		{
+			name: "deprecated_struct_return_stmts",
+			code: `package foo
+
+// Foo fake docs here
+// Deprecated: use Bar instead
+type Foo struct {
+	Field int32
+}
+
+type Bar struct {
+	Field int64
+}
+
+type Qux Foo
+
+type Baz Qux
+
+var x int
+
+func deprecated() interface{} {
+	foo := Foo{}
+	fooPtr := &Foo{}
+	var moo *Foo
+
+	if x > 0 {
+		return foo
+	} else if fooPtr != nil {
+		return fooPtr
+	}
+
+	return moo
+}`,
+			rulesFn: func(fset *token.FileSet) *core.DeprecatedStructRule {
+				return core.NewDeprecatedStructRule(fset)
+			},
+			expectedErrors: 6,
+		},
+		{
+			name: "deprecated_struct_function_param",
+			code: `package foo
+
+// Foo fake docs here
+// Deprecated: use Bar instead
+type Foo struct {
+	Field int32
+}
+
+type Bar struct {
+	Field int64
+}
+
+type Qux Foo
+
+type Baz Qux
+
+var x int
+
+func deprecated() interface{} {
+	foo := Foo{}
+	fooPtr := &Foo{}
+
+	check(foo)
+	checkPtr(fooPtr)
+	check(Foo{})
+	checkPtr(&Foo{})
+}
+
+func check(v interface{}) {
+}`,
+			rulesFn: func(fset *token.FileSet) *core.DeprecatedStructRule {
+				return core.NewDeprecatedStructRule(fset)
+			},
+			expectedErrors: 6,
+		},
+		{
+			name: "deprecated_struct_function_definitions",
+			code: `package foo
+
+// Foo fake docs here
+// Deprecated: use Bar instead
+type Foo struct {
+	Field int32
+}
+
+func Deprecated(f Foo) {
+}
+
+func DeprecatedReturn() Foo {
+	return Foo{}
+}
+`,
+			rulesFn: func(fset *token.FileSet) *core.DeprecatedStructRule {
+				return core.NewDeprecatedStructRule(fset)
+			},
+			expectedErrors: 3,
 		},
 	}
 
@@ -86,7 +230,7 @@ func checkPtr(foo *Foo) *Foo {
 			ast.Walk(v, node)
 			t.Log("\n", "\b\b", v.Errors)
 
-			if e, a := c.expectedErrors, len(v.Errors); e != a {
+			if e, a := c.expectedErrors, v.Errors.Count(); e != a {
 				t.Errorf("expected %v, but received %v", e, a)
 			}
 		})

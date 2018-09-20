@@ -10,24 +10,27 @@ import (
 
 const deprecatedPrefix = `// Deprecated:`
 
-// DeprecatedRule ...
+// DeprecatedRule is a container for all deprecated rules
 type DeprecatedRule struct {
 	structRule *DeprecatedStructRule
 	fieldRule  *DeprecatedFieldRule
+	opRule     *DeprecatedOpRule
 }
 
-// NewDeprecatedRule ...
+// NewDeprecatedRule will return a new set of deprecated rules
 func NewDeprecatedRule(fset *token.FileSet) *DeprecatedRule {
 	return &DeprecatedRule{
 		structRule: NewDeprecatedStructRule(fset),
 		fieldRule:  NewDeprecatedFieldRule(fset),
+		opRule:     NewDeprecatedOpRule(fset),
 	}
 }
 
-// AddRules ...
+// AddRules will add rules for every deprecate rule
 func (r *DeprecatedRule) AddRules(v *pepperlint.Visitor) {
 	r.structRule.AddRules(v)
 	r.fieldRule.AddRules(v)
+	r.opRule.AddRules(v)
 }
 
 // deprecatedFields will map what fields are deprecated in a struct type.
