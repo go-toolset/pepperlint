@@ -283,7 +283,7 @@ func GetImportPathFromFullPath(path string) string {
 	return path
 }
 
-// GetPackageNameFromImportPath ...
+// GetPackageNameFromImportPath will return the package name from the import path
 func GetPackageNameFromImportPath(importPath string) string {
 	return filepath.Base(importPath)
 }
