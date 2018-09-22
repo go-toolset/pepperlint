@@ -180,6 +180,7 @@ func lint(pkgs []string, pkg string) (*pepperlint.Visitor, Container, error) {
 	rule.AddRules(v)
 
 	walk(pepperlint.PackagesCache, container.Packages)
+	walk(pepperlint.PackagesCache, container.RulesPackages)
 	walk(v, container.RulesPackages)
 
 	return v, container, nil

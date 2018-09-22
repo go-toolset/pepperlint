@@ -3,6 +3,9 @@ package pepperlint
 import (
 	"go/ast"
 	"log"
+	"os"
+	"path/filepath"
+	"strings"
 )
 
 // IsStruct will return whether or not an ast.Expr is a
@@ -17,7 +20,15 @@ func IsStruct(expr ast.Expr) bool {
 			return false
 		}
 
-		info := PackagesCache.TypeInfos[ident.Name][t.Sel.Name]
+		pkg, ok := PackagesCache.Packages.Get(ident.Name)
+		if !ok {
+			return false
+		}
+
+		info, ok := pkg.Files.GetTypeInfo(t.Sel.Name)
+		if !ok {
+			return false
+		}
 		if info.Spec == nil {
 			return false
 		}
@@ -57,8 +68,13 @@ func GetStructType(expr ast.Expr) *ast.StructType {
 			return nil
 		}
 
-		info := PackagesCache.TypeInfos[ident.Name][t.Sel.Name]
-		if info.Spec == nil {
+		pkg, ok := PackagesCache.Packages.Get(ident.Name)
+		if !ok {
+			return nil
+		}
+
+		info, ok := pkg.Files.GetTypeInfo(t.Sel.Name)
+		if !ok || info.Spec == nil {
 			return nil
 		}
 
@@ -96,7 +112,22 @@ func GetTypeSpec(expr ast.Expr) *ast.TypeSpec {
 			return nil
 		}
 
-		info := PackagesCache.TypeInfos[ident.Name][t.Sel.Name]
+		file, ok := PackagesCache.CurrentFile()
+		if !ok {
+			return nil
+		}
+
+		pkgImportPath := file.Imports[ident.Name]
+		pkg, ok := PackagesCache.Packages.Get(pkgImportPath)
+		if !ok {
+			return nil
+		}
+
+		info, ok := pkg.Files.GetTypeInfo(t.Sel.Name)
+		if !ok {
+			return nil
+		}
+
 		return info.Spec
 	case *ast.Ident:
 		if t.Obj == nil {
@@ -128,8 +159,13 @@ func GetStructName(expr ast.Expr) string {
 			return ""
 		}
 
-		info := PackagesCache.TypeInfos[ident.Name][t.Sel.Name]
-		if info.Spec == nil {
+		pkg, ok := PackagesCache.Packages.Get(ident.Name)
+		if !ok {
+			return ""
+		}
+
+		info, ok := pkg.Files.GetTypeInfo(t.Sel.Name)
+		if !ok || info.Spec == nil {
 			return ""
 		}
 
@@ -226,4 +262,28 @@ func GetFieldByIndex(index int, spec *ast.TypeSpec) *ast.Field {
 	}
 
 	return sType.Fields.List[index]
+}
+
+// GetImportPathFromFullPath will return the import path from the given full path
+func GetImportPathFromFullPath(path string) string {
+	gopath := os.Getenv("GOPATH")
+	// strip of the gopath
+	// TODO: Should eventually iterate through multiple gopaths if provided
+	// ie, GOPATH=foo/bar:bar/baz
+	if strings.HasPrefix(path, gopath) {
+		path = path[len(gopath):]
+	}
+
+	// strip off src. What should be left is
+	// import/path/to/pkg
+	if src := "/src/"; strings.HasPrefix(path, src) {
+		path = path[len(src):]
+	}
+
+	return path
+}
+
+// GetPackageNameFromImportPath ...
+func GetPackageNameFromImportPath(importPath string) string {
+	return filepath.Base(importPath)
 }

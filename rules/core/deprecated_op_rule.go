@@ -116,7 +116,21 @@ func (r *DeprecatedOpRule) getExternalTypeSpec(rhs ast.Expr) (pepperlint.TypeInf
 		ident, ok := exprType.X.(*ast.Ident)
 		pkgName := ident.Name
 		typeName := exprType.Sel.Name
-		info, ok := pepperlint.PackagesCache.TypeInfos[pkgName][typeName]
+		file, ok := pepperlint.PackagesCache.CurrentFile()
+		if !ok {
+			panic("CurrentFile was not set")
+		}
+
+		importPath := file.Imports[pkgName]
+		pkg, ok := pepperlint.PackagesCache.Packages.Get(importPath)
+		if !ok {
+			panic(fmt.Errorf("package, %q, does not exist in cache", importPath))
+		}
+
+		info, ok := pkg.Files.GetTypeInfo(typeName)
+		if !ok {
+			return pepperlint.TypeInfo{}, false
+		}
 
 		return info, ok
 	case *ast.UnaryExpr:
@@ -209,16 +223,36 @@ func (r *DeprecatedOpRule) isSelectorExprDeprecated(sel *ast.SelectorExpr) []err
 	var ok bool
 	errs := []error{}
 
+	externalPkg := false
 	if infos, ok = r.getExternalPackageType(sel.X); ok {
+		externalPkg = true
 	} else if infos, ok = r.getInternalPackageType(sel.X); !ok {
 		return nil
 	}
 
 	for _, info := range infos {
 		spec := info.Spec
-		pkgOps := pepperlint.PackagesCache.OpInfos[info.PkgName]
-		opInfo, ok := pkgOps[methodName]
+		var pkg *pepperlint.Package
+		found := false
 
+		if externalPkg {
+			file, ok := pepperlint.PackagesCache.CurrentFile()
+			if !ok {
+				panic("CurrentFile was not properly set")
+			}
+
+			pkgImportPath := file.Imports[info.PkgName]
+			pkg, found = pepperlint.PackagesCache.Packages.Get(pkgImportPath)
+		} else {
+			pkg, found = pepperlint.PackagesCache.CurrentPackage()
+		}
+
+		// Potentially received a package we didn't crawl for the cache
+		if !found {
+			continue
+		}
+
+		opInfo, ok := pkg.Files.GetOpInfo(methodName)
 		if !ok {
 			continue
 		}
