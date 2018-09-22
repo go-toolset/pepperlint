@@ -83,6 +83,6 @@ func TestMain(t *testing.T) {
 				t.Errorf("expected %v, but received %v", e, a)
 			}
 		}
-		t.Log("ERRORS", v.Errors)
+		pepperlint.Log("ERRORS %v", v.Errors)
 	}
 }

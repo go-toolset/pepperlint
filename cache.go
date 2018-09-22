@@ -170,7 +170,7 @@ func (c *Cache) getTypeFromField(expr ast.Expr) (*ast.TypeSpec, bool) {
 	case *ast.StarExpr:
 		return c.getTypeFromField(fieldType.X)
 	default:
-		Log("OPPOPOPOO %T %v", fieldType, fieldType)
+		Log("TODO getTypeFromField %T", fieldType)
 	}
 
 	return nil, false
