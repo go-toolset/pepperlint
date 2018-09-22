@@ -48,7 +48,22 @@ func (r DeprecatedStructRule) isSelectorExprDeprecated(node ast.Node, expr *ast.
 		return nil
 	}
 
-	info := pepperlint.PackagesCache.TypeInfos[ident.Name][expr.Sel.Name]
+	file, ok := pepperlint.PackagesCache.CurrentFile()
+	if !ok {
+		panic("CurrentFile was not set")
+	}
+
+	pkgImportPath := file.Imports[ident.Name]
+	pkg, ok := pepperlint.PackagesCache.Packages.Get(pkgImportPath)
+	if !ok {
+		return nil
+	}
+
+	info, ok := pkg.Files.GetTypeInfo(expr.Sel.Name)
+	if !ok {
+		return nil
+	}
+
 	if hasDeprecatedComment(info.Doc) {
 		return pepperlint.NewErrorWrap(r.fset, node, fmt.Sprintf("deprecated '%s.%s' struct used", ident.Name, expr.Sel.Name))
 	}
@@ -133,7 +148,16 @@ func (r DeprecatedStructRule) isIdentDeprecated(node ast.Node, ident *ast.Ident)
 		return errs
 	}
 
-	info := pepperlint.PackagesCache.TypeInfos[r.currentPkgName][spec.Name.Name]
+	pkg, ok := pepperlint.PackagesCache.CurrentPackage()
+	if !ok {
+		panic("SHOULD NOT BE HERE")
+	}
+
+	info, ok := pkg.Files.GetTypeInfo(spec.Name.Name)
+	if !ok {
+		return nil
+	}
+
 	if hasDeprecatedComment(info.Doc) {
 		errs = append(errs, pepperlint.NewErrorWrap(r.fset, node, fmt.Sprintf("deprecated %q struct used", spec.Name.Name)))
 	}
@@ -208,7 +232,16 @@ func (r DeprecatedStructRule) deprecatedStructUsage(rhs ast.Expr, expr ast.Expr)
 				return errs
 			}
 
-			info := pepperlint.PackagesCache.TypeInfos[r.currentPkgName][decl.Name.Name]
+			pkg, ok := pepperlint.PackagesCache.CurrentPackage()
+			if !ok {
+				panic("CurrentPackage was not set")
+			}
+
+			info, ok := pkg.Files.GetTypeInfo(decl.Name.Name)
+			if !ok {
+				return nil
+			}
+
 			if hasDeprecatedComment(info.Doc) {
 				errs = append(errs, pepperlint.NewErrorWrap(r.fset, rhs, fmt.Sprintf("deprecated %q struct used", decl.Name.Name)))
 			} else if es := r.checkTypeAliases(rhs, decl.Type); len(es) > 0 {
@@ -250,7 +283,16 @@ func (r DeprecatedStructRule) checkTypeAliases(rhs ast.Node, expr ast.Expr) []er
 			return errs
 		}
 
-		info := pepperlint.PackagesCache.TypeInfos[r.currentPkgName][spec.Name.Name]
+		pkg, ok := pepperlint.PackagesCache.CurrentPackage()
+		if !ok {
+			panic("CurrentPackage was not set")
+		}
+
+		info, ok := pkg.Files.GetTypeInfo(spec.Name.Name)
+		if !ok {
+			return errs
+		}
+
 		if hasDeprecatedComment(info.Doc) {
 			errs = append(errs, pepperlint.NewErrorWrap(r.fset, rhs, fmt.Sprintf("deprecated %q struct used", spec.Name.Name)))
 		} else {

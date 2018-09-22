@@ -3,6 +3,7 @@ package pepperlint
 import (
 	"go/ast"
 	"go/token"
+	"path/filepath"
 )
 
 // Visitor is used to traferse a node and run the proper validaters
@@ -12,11 +13,16 @@ type Visitor struct {
 	Errors Errors
 
 	FSet *token.FileSet
+
+	currentPkgImportPath string
 }
 
 // NewVisitor returns a new visitor and instantiates a new rule set from
 // the adders parameter.
 func NewVisitor(fset *token.FileSet, adders ...RulesAdder) *Visitor {
+	PackagesCache.currentPkgImportPath = ""
+	PackagesCache.currentFile = nil
+
 	v := &Visitor{
 		FSet: fset,
 	}
@@ -38,6 +44,17 @@ func (v *Visitor) Visit(node ast.Node) ast.Visitor {
 	//Log("VISITING %p %T %v", node, node, node)
 
 	switch t := node.(type) {
+	case *ast.Package:
+		for k := range t.Files {
+			PackagesCache.currentPkgImportPath = GetImportPathFromFullPath(filepath.Dir(k))
+			break
+		}
+
+		v.visitPackage(t)
+	case *ast.File:
+		PackagesCache.currentFile = t
+
+		v.visitFile(t)
 	case ast.Decl:
 		v.visitDecl(t)
 	case ast.Expr:
@@ -58,10 +75,6 @@ func (v *Visitor) Visit(node ast.Node) ast.Visitor {
 		v.visitFieldList(t)
 	case *ast.Comment:
 	case *ast.CommentGroup:
-	case *ast.File:
-		v.visitFile(t)
-	case *ast.Package:
-		v.visitPackage(t)
 	default:
 		if t != nil {
 			Log("TODO: visit %T\n", t)
