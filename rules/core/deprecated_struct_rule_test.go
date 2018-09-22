@@ -229,7 +229,7 @@ func DeprecatedReturn() Foo {
 			ast.Walk(pepperlint.PackagesCache, node)
 
 			ast.Walk(v, node)
-			t.Log("\n", "\b\b", v.Errors)
+			pepperlint.Log("%v", v.Errors)
 
 			if e, a := c.expectedErrors, v.Errors.Count(); e != a {
 				t.Errorf("expected %v, but received %v", e, a)
