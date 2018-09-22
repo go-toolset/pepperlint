@@ -19,6 +19,7 @@ func TestVisitor(t *testing.T) {
 		{
 			name: "exclude struct rule",
 			visitor: Visitor{
+				PackagesCache: &Cache{},
 				Rules: Rules{
 					TypeSpecRules: TypeSpecRules{
 						testExcludeNameTypeSpecRule{

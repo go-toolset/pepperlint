@@ -27,10 +27,17 @@ func NewDeprecatedRule(fset *token.FileSet) *DeprecatedRule {
 }
 
 // AddRules will add rules for every deprecate rule
-func (r *DeprecatedRule) AddRules(v *pepperlint.Visitor) {
-	r.structRule.AddRules(v)
-	r.fieldRule.AddRules(v)
-	r.opRule.AddRules(v)
+func (r *DeprecatedRule) AddRules(rules *pepperlint.Rules) {
+	r.structRule.AddRules(rules)
+	r.fieldRule.AddRules(rules)
+	r.opRule.AddRules(rules)
+}
+
+// WithCache will add rules for every deprecate rule
+func (r *DeprecatedRule) WithCache(cache *pepperlint.Cache) {
+	r.structRule.WithCache(cache)
+	r.fieldRule.WithCache(cache)
+	r.opRule.WithCache(cache)
 }
 
 // deprecatedFields will map what fields are deprecated in a struct type.

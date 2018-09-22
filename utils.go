@@ -8,9 +8,21 @@ import (
 	"strings"
 )
 
+// Helper is used to make determing properties of an ast.Node
+type Helper struct {
+	PackagesCache *Cache
+}
+
+// NewHelper will return a new helper with a populated cache.
+func NewHelper(cache *Cache) Helper {
+	return Helper{
+		PackagesCache: cache,
+	}
+}
+
 // IsStruct will return whether or not an ast.Expr is a
 // struct type.
-func IsStruct(expr ast.Expr) bool {
+func (h Helper) IsStruct(expr ast.Expr) bool {
 	switch t := expr.(type) {
 	// Chcek if it is a selector expression, meaning it potentially
 	// could be an imported shape
@@ -20,7 +32,7 @@ func IsStruct(expr ast.Expr) bool {
 			return false
 		}
 
-		pkg, ok := PackagesCache.Packages.Get(ident.Name)
+		pkg, ok := h.PackagesCache.Packages.Get(ident.Name)
 		if !ok {
 			return false
 		}
@@ -33,7 +45,7 @@ func IsStruct(expr ast.Expr) bool {
 			return false
 		}
 
-		return IsStruct(info.Spec.Type)
+		return h.IsStruct(info.Spec.Type)
 	case *ast.StructType:
 		return true
 	case *ast.Ident:
@@ -48,17 +60,17 @@ func IsStruct(expr ast.Expr) bool {
 		decl := t.Obj.Decl
 		switch d := decl.(type) {
 		case *ast.TypeSpec:
-			return IsStruct(d.Type)
+			return h.IsStruct(d.Type)
 		}
 	case *ast.StarExpr:
-		return IsStruct(t.X)
+		return h.IsStruct(t.X)
 	}
 
 	return false
 }
 
 // GetStructType will return a struct from the given expr.
-func GetStructType(expr ast.Expr) *ast.StructType {
+func (h Helper) GetStructType(expr ast.Expr) *ast.StructType {
 	switch t := expr.(type) {
 	// Chcek if it is a selector expression, meaning it potentially
 	// could be an imported shape
@@ -68,7 +80,7 @@ func GetStructType(expr ast.Expr) *ast.StructType {
 			return nil
 		}
 
-		pkg, ok := PackagesCache.Packages.Get(ident.Name)
+		pkg, ok := h.PackagesCache.Packages.Get(ident.Name)
 		if !ok {
 			return nil
 		}
@@ -78,7 +90,7 @@ func GetStructType(expr ast.Expr) *ast.StructType {
 			return nil
 		}
 
-		return GetStructType(info.Spec.Type)
+		return h.GetStructType(info.Spec.Type)
 	case *ast.StructType:
 		return t
 	case *ast.Ident:
@@ -93,10 +105,10 @@ func GetStructType(expr ast.Expr) *ast.StructType {
 		decl := t.Obj.Decl
 		switch d := decl.(type) {
 		case *ast.TypeSpec:
-			return GetStructType(d.Type)
+			return h.GetStructType(d.Type)
 		}
 	case *ast.StarExpr:
-		return GetStructType(t.X)
+		return h.GetStructType(t.X)
 	}
 
 	return nil
@@ -104,7 +116,7 @@ func GetStructType(expr ast.Expr) *ast.StructType {
 
 // GetTypeSpec will return the given type spec for an expression. nil will
 // be returned if one could not be found
-func GetTypeSpec(expr ast.Expr) *ast.TypeSpec {
+func (h Helper) GetTypeSpec(expr ast.Expr) *ast.TypeSpec {
 	switch t := expr.(type) {
 	case *ast.SelectorExpr:
 		ident, ok := t.X.(*ast.Ident)
@@ -112,13 +124,13 @@ func GetTypeSpec(expr ast.Expr) *ast.TypeSpec {
 			return nil
 		}
 
-		file, ok := PackagesCache.CurrentFile()
+		file, ok := h.PackagesCache.CurrentFile()
 		if !ok {
 			return nil
 		}
 
 		pkgImportPath := file.Imports[ident.Name]
-		pkg, ok := PackagesCache.Packages.Get(pkgImportPath)
+		pkg, ok := h.PackagesCache.Packages.Get(pkgImportPath)
 		if !ok {
 			return nil
 		}
@@ -144,14 +156,14 @@ func GetTypeSpec(expr ast.Expr) *ast.TypeSpec {
 			return d
 		}
 	case *ast.StarExpr:
-		return GetTypeSpec(t.X)
+		return h.GetTypeSpec(t.X)
 	}
 
 	return nil
 }
 
 // GetStructName will return a struct from the given expr.
-func GetStructName(expr ast.Expr) string {
+func (h Helper) GetStructName(expr ast.Expr) string {
 	switch t := expr.(type) {
 	case *ast.SelectorExpr:
 		ident, ok := t.X.(*ast.Ident)
@@ -159,7 +171,7 @@ func GetStructName(expr ast.Expr) string {
 			return ""
 		}
 
-		pkg, ok := PackagesCache.Packages.Get(ident.Name)
+		pkg, ok := h.PackagesCache.Packages.Get(ident.Name)
 		if !ok {
 			return ""
 		}
@@ -185,7 +197,7 @@ func GetStructName(expr ast.Expr) string {
 			return d.Name.Name
 		}
 	case *ast.StarExpr:
-		return GetStructName(t.X)
+		return h.GetStructName(t.X)
 	}
 
 	return ""
@@ -203,7 +215,9 @@ func IsMethod(expr ast.Decl) bool {
 	return false
 }
 
-// GetOpFromType ...
+// GetOpFromType will iterate and find the field of name 'name'. Once that
+// field has been found, it will return the call expr. If that field is not found,
+// nil will be returned
 func GetOpFromType(spec *ast.TypeSpec, name string) *ast.CallExpr {
 	switch t := spec.Type.(type) {
 	case *ast.StructType:
@@ -232,12 +246,12 @@ func GetOpFromType(spec *ast.TypeSpec, name string) *ast.CallExpr {
 
 // GetFieldByName will retrieve the ast.Field off of an ast.TypeSpec and
 // field name.
-func GetFieldByName(fieldName string, spec *ast.TypeSpec) *ast.Field {
-	if !IsStruct(spec.Type) {
+func (h Helper) GetFieldByName(fieldName string, spec *ast.TypeSpec) *ast.Field {
+	if !h.IsStruct(spec.Type) {
 		return nil
 	}
 
-	sType := GetStructType(spec.Type)
+	sType := h.GetStructType(spec.Type)
 	for _, depField := range sType.Fields.List {
 		for _, name := range depField.Names {
 			if name.Name == fieldName {
@@ -251,12 +265,12 @@ func GetFieldByName(fieldName string, spec *ast.TypeSpec) *ast.Field {
 
 // GetFieldByIndex will retrieve the ast.Field off of an ast.TypeSpec and
 // field index.
-func GetFieldByIndex(index int, spec *ast.TypeSpec) *ast.Field {
-	if !IsStruct(spec.Type) {
+func (h Helper) GetFieldByIndex(index int, spec *ast.TypeSpec) *ast.Field {
+	if !h.IsStruct(spec.Type) {
 		return nil
 	}
 
-	sType := GetStructType(spec.Type)
+	sType := h.GetStructType(spec.Type)
 	if index < 0 || index >= len(sType.Fields.List) {
 		return nil
 	}
@@ -266,18 +280,21 @@ func GetFieldByIndex(index int, spec *ast.TypeSpec) *ast.Field {
 
 // GetImportPathFromFullPath will return the import path from the given full path
 func GetImportPathFromFullPath(path string) string {
-	gopath := os.Getenv("GOPATH")
+	gopath := filepath.Join(os.Getenv("GOPATH"), "src")
+	gopath += "/"
 	// strip of the gopath
 	// TODO: Should eventually iterate through multiple gopaths if provided
 	// ie, GOPATH=foo/bar:bar/baz
-	if strings.HasPrefix(path, gopath) {
-		path = path[len(gopath):]
-	}
+	return getImportPathFromFullPath([]string{gopath}, path)
+}
 
-	// strip off src. What should be left is
-	// import/path/to/pkg
-	if src := "/src/"; strings.HasPrefix(path, src) {
-		path = path[len(src):]
+func getImportPathFromFullPath(prefixes []string, path string) string {
+	for _, prefix := range prefixes {
+		if !strings.HasPrefix(path, prefix) {
+			continue
+		}
+
+		return path[len(prefix):]
 	}
 
 	return path
