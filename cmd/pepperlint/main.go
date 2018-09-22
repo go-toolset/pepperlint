@@ -175,12 +175,13 @@ func lint(pkgs []string, pkg string) (*pepperlint.Visitor, Container, error) {
 		return nil, Container{}, err
 	}
 
-	v := pepperlint.NewVisitor(fset)
-	rule := core.NewDeprecatedRule(fset)
-	rule.AddRules(v)
+	cache := pepperlint.NewCache()
 
-	walk(pepperlint.PackagesCache, container.Packages)
-	walk(pepperlint.PackagesCache, container.RulesPackages)
+	rule := core.NewDeprecatedRule(fset)
+	v := pepperlint.NewVisitor(fset, cache, rule)
+
+	walk(cache, container.Packages)
+	walk(cache, container.RulesPackages)
 	walk(v, container.RulesPackages)
 
 	return v, container, nil

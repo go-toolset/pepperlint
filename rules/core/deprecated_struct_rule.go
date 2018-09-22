@@ -13,6 +13,7 @@ import (
 type DeprecatedStructRule struct {
 	fset           *token.FileSet
 	currentPkgName string
+	helper         pepperlint.Helper
 }
 
 // NewDeprecatedStructRule return a newly instantiated DeprecatedStructRule
@@ -48,13 +49,13 @@ func (r DeprecatedStructRule) isSelectorExprDeprecated(node ast.Node, expr *ast.
 		return nil
 	}
 
-	file, ok := pepperlint.PackagesCache.CurrentFile()
+	file, ok := r.helper.PackagesCache.CurrentFile()
 	if !ok {
 		panic("CurrentFile was not set")
 	}
 
 	pkgImportPath := file.Imports[ident.Name]
-	pkg, ok := pepperlint.PackagesCache.Packages.Get(pkgImportPath)
+	pkg, ok := r.helper.PackagesCache.Packages.Get(pkgImportPath)
 	if !ok {
 		return nil
 	}
@@ -148,7 +149,7 @@ func (r DeprecatedStructRule) isIdentDeprecated(node ast.Node, ident *ast.Ident)
 		return errs
 	}
 
-	pkg, ok := pepperlint.PackagesCache.CurrentPackage()
+	pkg, ok := r.helper.PackagesCache.CurrentPackage()
 	if !ok {
 		panic("SHOULD NOT BE HERE")
 	}
@@ -232,7 +233,7 @@ func (r DeprecatedStructRule) deprecatedStructUsage(rhs ast.Expr, expr ast.Expr)
 				return errs
 			}
 
-			pkg, ok := pepperlint.PackagesCache.CurrentPackage()
+			pkg, ok := r.helper.PackagesCache.CurrentPackage()
 			if !ok {
 				panic("CurrentPackage was not set")
 			}
@@ -283,7 +284,7 @@ func (r DeprecatedStructRule) checkTypeAliases(rhs ast.Node, expr ast.Expr) []er
 			return errs
 		}
 
-		pkg, ok := pepperlint.PackagesCache.CurrentPackage()
+		pkg, ok := r.helper.PackagesCache.CurrentPackage()
 		if !ok {
 			panic("CurrentPackage was not set")
 		}
@@ -513,7 +514,7 @@ func (r DeprecatedStructRule) ValidateBinaryExpr(expr *ast.BinaryExpr) error {
 }
 
 // AddRules will add the DeprecatedStructRule to the given visitor
-func (r *DeprecatedStructRule) AddRules(v *pepperlint.Visitor) {
+func (r *DeprecatedStructRule) AddRules(visitorRules *pepperlint.Rules) {
 	rules := pepperlint.Rules{
 		AssignStmtRules: pepperlint.AssignStmtRules{r},
 		BinaryExprRules: pepperlint.BinaryExprRules{r},
@@ -525,5 +526,10 @@ func (r *DeprecatedStructRule) AddRules(v *pepperlint.Visitor) {
 		ValueSpecRules:  pepperlint.ValueSpecRules{r},
 	}
 
-	v.Rules.Merge(rules)
+	visitorRules.Merge(rules)
+}
+
+// WithCache .
+func (r *DeprecatedStructRule) WithCache(cache *pepperlint.Cache) {
+	r.helper = pepperlint.NewHelper(cache)
 }

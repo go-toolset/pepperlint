@@ -14,6 +14,7 @@ import (
 type DeprecatedOpRule struct {
 	fset           *token.FileSet
 	currentPkgName string
+	helper         pepperlint.Helper
 }
 
 // NewDeprecatedOpRule returns a new DeprecatedOpRule with the given file set.
@@ -116,13 +117,13 @@ func (r *DeprecatedOpRule) getExternalTypeSpec(rhs ast.Expr) (pepperlint.TypeInf
 		ident, ok := exprType.X.(*ast.Ident)
 		pkgName := ident.Name
 		typeName := exprType.Sel.Name
-		file, ok := pepperlint.PackagesCache.CurrentFile()
+		file, ok := r.helper.PackagesCache.CurrentFile()
 		if !ok {
 			panic("CurrentFile was not set")
 		}
 
 		importPath := file.Imports[pkgName]
-		pkg, ok := pepperlint.PackagesCache.Packages.Get(importPath)
+		pkg, ok := r.helper.PackagesCache.Packages.Get(importPath)
 		if !ok {
 			panic(fmt.Errorf("package, %q, does not exist in cache", importPath))
 		}
@@ -236,15 +237,15 @@ func (r *DeprecatedOpRule) isSelectorExprDeprecated(sel *ast.SelectorExpr) []err
 		found := false
 
 		if externalPkg {
-			file, ok := pepperlint.PackagesCache.CurrentFile()
+			file, ok := r.helper.PackagesCache.CurrentFile()
 			if !ok {
 				panic("CurrentFile was not properly set")
 			}
 
 			pkgImportPath := file.Imports[info.PkgName]
-			pkg, found = pepperlint.PackagesCache.Packages.Get(pkgImportPath)
+			pkg, found = r.helper.PackagesCache.Packages.Get(pkgImportPath)
 		} else {
-			pkg, found = pepperlint.PackagesCache.CurrentPackage()
+			pkg, found = r.helper.PackagesCache.CurrentPackage()
 		}
 
 		// Potentially received a package we didn't crawl for the cache
@@ -322,12 +323,17 @@ func (r *DeprecatedOpRule) ValidatePackage(pkg *ast.Package) error {
 }
 
 // AddRules will add the DeprecatedFieldRule to the given visitor
-func (r *DeprecatedOpRule) AddRules(v *pepperlint.Visitor) {
+func (r *DeprecatedOpRule) AddRules(visitorRules *pepperlint.Rules) {
 	rules := pepperlint.Rules{
 		AssignStmtRules: pepperlint.AssignStmtRules{r},
 		CallExprRules:   pepperlint.CallExprRules{r},
 		PackageRules:    pepperlint.PackageRules{r},
 	}
 
-	v.Rules.Merge(rules)
+	visitorRules.Merge(rules)
+}
+
+// WithCache .
+func (r *DeprecatedOpRule) WithCache(cache *pepperlint.Cache) {
+	r.helper = pepperlint.NewHelper(cache)
 }

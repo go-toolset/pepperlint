@@ -12,6 +12,8 @@ type Visitor struct {
 	Rules  Rules
 	Errors Errors
 
+	PackagesCache *Cache
+
 	FSet *token.FileSet
 
 	currentPkgImportPath string
@@ -19,16 +21,20 @@ type Visitor struct {
 
 // NewVisitor returns a new visitor and instantiates a new rule set from
 // the adders parameter.
-func NewVisitor(fset *token.FileSet, adders ...RulesAdder) *Visitor {
-	PackagesCache.currentPkgImportPath = ""
-	PackagesCache.currentFile = nil
-
+func NewVisitor(fset *token.FileSet, cache *Cache, opts ...Option) *Visitor {
 	v := &Visitor{
-		FSet: fset,
+		FSet:          fset,
+		PackagesCache: cache,
 	}
 
-	for _, adder := range adders {
-		adder.AddRules(v)
+	for _, o := range opts {
+		if opt, ok := o.(RulesAdder); ok {
+			opt.AddRules(&v.Rules)
+		}
+
+		if opt, ok := o.(CacheOption); ok {
+			opt.WithCache(v.PackagesCache)
+		}
 	}
 
 	return v
@@ -46,13 +52,13 @@ func (v *Visitor) Visit(node ast.Node) ast.Visitor {
 	switch t := node.(type) {
 	case *ast.Package:
 		for k := range t.Files {
-			PackagesCache.currentPkgImportPath = GetImportPathFromFullPath(filepath.Dir(k))
+			v.PackagesCache.currentPkgImportPath = GetImportPathFromFullPath(filepath.Dir(k))
 			break
 		}
 
 		v.visitPackage(t)
 	case *ast.File:
-		PackagesCache.currentFile = t
+		v.PackagesCache.currentFile = t
 
 		v.visitFile(t)
 	case ast.Decl:

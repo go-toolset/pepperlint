@@ -36,6 +36,7 @@ func (v testExcludeField) ValidateStructType(s *ast.StructType) error {
 type testExcludeMethod struct {
 	StructName string
 	Name       string
+	helper     Helper
 }
 
 func (v testExcludeMethod) ValidateFuncDecl(fnDecl *ast.FuncDecl) error {
@@ -45,11 +46,11 @@ func (v testExcludeMethod) ValidateFuncDecl(fnDecl *ast.FuncDecl) error {
 
 	found := false
 	for _, object := range fnDecl.Recv.List {
-		if ok := IsStruct(object.Type); !ok {
+		if ok := v.helper.IsStruct(object.Type); !ok {
 			continue
 		}
 
-		name := GetStructName(object.Type)
+		name := v.helper.GetStructName(object.Type)
 		if name == v.StructName {
 			found = true
 		}

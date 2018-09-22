@@ -12,6 +12,7 @@ import (
 type DeprecatedFieldRule struct {
 	fset           *token.FileSet
 	currentPkgName string
+	helper         pepperlint.Helper
 }
 
 type fieldInfo struct {
@@ -77,7 +78,7 @@ func (r DeprecatedFieldRule) isDeprecatedField(expr *ast.SelectorExpr) error {
 		}
 	}
 
-	depField := pepperlint.GetFieldByName(expr.Sel.Name, info.Spec)
+	depField := r.helper.GetFieldByName(expr.Sel.Name, info.Spec)
 	if depField == nil {
 		return nil
 	}
@@ -114,7 +115,7 @@ func (r DeprecatedFieldRule) checkBinaryExprFields(bexpr *ast.BinaryExpr) []erro
 				continue
 			}
 
-			depField := pepperlint.GetFieldByName(exprType.Sel.Name, info.Spec)
+			depField := r.helper.GetFieldByName(exprType.Sel.Name, info.Spec)
 			if depField == nil {
 				continue
 			}
@@ -186,7 +187,7 @@ func (r DeprecatedFieldRule) getFieldInfoFromDecl(decl interface{}) fieldInfos {
 				switch rhsType := rhs.Type.(type) {
 				// RHS is a imported package
 				case *ast.SelectorExpr:
-					spec := pepperlint.GetTypeSpec(rhsType)
+					spec := r.helper.GetTypeSpec(rhsType)
 					info.Spec = spec
 					info.Elts = rhs.Elts
 					populated = true
@@ -222,7 +223,7 @@ func (r DeprecatedFieldRule) getFieldInfoFromDecl(decl interface{}) fieldInfos {
 		}
 	case *ast.Field:
 		infos = append(infos, fieldInfo{
-			Spec:  pepperlint.GetTypeSpec(t.Type),
+			Spec:  r.helper.GetTypeSpec(t.Type),
 			Field: t,
 		})
 	default:
@@ -286,7 +287,7 @@ func (r DeprecatedFieldRule) ValidateAssignStmt(stmt *ast.AssignStmt) error {
 		}
 
 		// This function will only care about fields being set, which is the Elts field.
-		if info.Spec == nil || !pepperlint.IsStruct(info.Spec.Type) {
+		if info.Spec == nil || !r.helper.IsStruct(info.Spec.Type) {
 			continue
 		}
 
@@ -299,7 +300,7 @@ func (r DeprecatedFieldRule) ValidateAssignStmt(stmt *ast.AssignStmt) error {
 			case *ast.KeyValueExpr:
 				switch keyType := t.Key.(type) {
 				case *ast.Ident:
-					depField := pepperlint.GetFieldByName(keyType.Name, info.Spec)
+					depField := r.helper.GetFieldByName(keyType.Name, info.Spec)
 					if depField == nil {
 						continue
 					}
@@ -310,7 +311,7 @@ func (r DeprecatedFieldRule) ValidateAssignStmt(stmt *ast.AssignStmt) error {
 				}
 
 			case *ast.BasicLit, *ast.CompositeLit:
-				depField := pepperlint.GetFieldByIndex(i, info.Spec)
+				depField := r.helper.GetFieldByIndex(i, info.Spec)
 				if depField == nil {
 					continue
 				}
@@ -427,7 +428,7 @@ func (r DeprecatedFieldRule) ValidateRangeStmt(expr *ast.RangeStmt) error {
 }
 
 // AddRules will add the DeprecatedFieldRule to the given visitor
-func (r *DeprecatedFieldRule) AddRules(v *pepperlint.Visitor) {
+func (r *DeprecatedFieldRule) AddRules(visitorRules *pepperlint.Rules) {
 	rules := pepperlint.Rules{
 		AssignStmtRules: pepperlint.AssignStmtRules{r},
 		BinaryExprRules: pepperlint.BinaryExprRules{r},
@@ -438,5 +439,10 @@ func (r *DeprecatedFieldRule) AddRules(v *pepperlint.Visitor) {
 		RangeStmtRules:  pepperlint.RangeStmtRules{r},
 	}
 
-	v.Rules.Merge(rules)
+	visitorRules.Merge(rules)
+}
+
+// WithCache .
+func (r *DeprecatedFieldRule) WithCache(cache *pepperlint.Cache) {
+	r.helper = pepperlint.NewHelper(cache)
 }

@@ -1,11 +1,9 @@
-package pepperlint_test
+package pepperlint
 
 import (
 	"go/ast"
 	"reflect"
 	"testing"
-
-	"github.com/go-toolset/pepperlint"
 )
 
 func TestIsStruct(t *testing.T) {
@@ -39,7 +37,8 @@ func TestIsStruct(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			if e, a := c.expected, pepperlint.IsStruct(c.expr); e != a {
+			helper := Helper{}
+			if e, a := c.expected, helper.IsStruct(c.expr); e != a {
 				t.Errorf("expected %v, but received %v", e, a)
 			}
 		})
@@ -81,8 +80,50 @@ func TestGetStructType(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			if e, a := c.expected, pepperlint.GetStructType(c.expr); !reflect.DeepEqual(e, a) {
+			helper := Helper{}
+			if e, a := c.expected, helper.GetStructType(c.expr); !reflect.DeepEqual(e, a) {
 				t.Errorf("expected %v, but received %v", e, a)
+			}
+		})
+	}
+}
+
+func TestGetImportPathFromFullPath(t *testing.T) {
+	cases := []struct {
+		name         string
+		prefixes     []string
+		path         string
+		expectedPath string
+	}{
+		{
+			name:         "no prefixes",
+			path:         "foobar",
+			expectedPath: "foobar",
+		},
+		{
+			name: "simple prefixes",
+			prefixes: []string{
+				"foo",
+				"bar",
+			},
+			path:         "foobar",
+			expectedPath: "bar",
+		},
+		{
+			name: "prefixes not match",
+			prefixes: []string{
+				"foo",
+				"bar",
+			},
+			path:         "bazbar",
+			expectedPath: "bazbar",
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if e, a := c.expectedPath, getImportPathFromFullPath(c.prefixes, c.path); e != a {
+				t.Errorf("expected %q, but received %q", e, a)
 			}
 		})
 	}

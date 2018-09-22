@@ -7,17 +7,18 @@ import (
 	"strconv"
 )
 
-// PackagesCache contains all type information in a given cache.
-// This allows packages to inspect other packages types
-var PackagesCache = &Cache{
-	Packages: Packages{},
-}
-
 // Cache defintion that contain type information per package.
 type Cache struct {
 	Packages             Packages
 	currentPkgImportPath string
 	currentFile          *ast.File
+}
+
+// NewCache will return a new cache along with initializing any fields.
+func NewCache() *Cache {
+	return &Cache{
+		Packages: Packages{},
+	}
 }
 
 // CurrentPackage will attempt to return the current package. If currentPkgImportPath

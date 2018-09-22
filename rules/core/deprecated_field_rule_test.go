@@ -240,11 +240,15 @@ func TestDeprecateFieldRule(t *testing.T) {
 				t.Fatal("unexpected nil expr")
 			}
 
-			v := pepperlint.NewVisitor(fset, c.rulesFn(fset))
+			cache := &pepperlint.Cache{
+				Packages: pepperlint.Packages{},
+			}
+			cache.Packages[""] = &pepperlint.Package{}
 
-			pepperlint.PackagesCache.Packages[""] = &pepperlint.Package{}
+			v := pepperlint.NewVisitor(fset, cache, c.rulesFn(fset))
+
 			// populate cache
-			ast.Walk(pepperlint.PackagesCache, node)
+			ast.Walk(cache, node)
 
 			ast.Walk(v, node)
 			pepperlint.Log("%v", v.Errors)
