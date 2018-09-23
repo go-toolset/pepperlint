@@ -45,7 +45,14 @@ func TestMain(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		v, _, err := lint(c.includeDirs, c.mainPackage)
+		config := Config{
+			Rules: Rules{
+				{
+					RuleName: "deprecated",
+				},
+			},
+		}
+		v, _, err := lint(config, c.includeDirs, c.mainPackage)
 		if err != nil {
 			t.Fatal(err)
 		}

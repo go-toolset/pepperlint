@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/go-toolset/pepperlint"
+	"github.com/go-toolset/pepperlint/rules"
 )
 
 const deprecatedPrefix = `// Deprecated:`
@@ -38,6 +39,24 @@ func (r *DeprecatedRule) WithCache(cache *pepperlint.Cache) {
 	r.structRule.WithCache(cache)
 	r.fieldRule.WithCache(cache)
 	r.opRule.WithCache(cache)
+}
+
+// WithFileSet sets the file sets to each rule inside the deprecated
+// rule container.
+func (r DeprecatedRule) WithFileSet(fset *token.FileSet) {
+	r.structRule.WithFileSet(fset)
+	r.fieldRule.WithFileSet(fset)
+	r.opRule.WithFileSet(fset)
+}
+
+// CopyRule satisfies the copy ruler interface to copy the
+// current DeprecatedRule
+func (r DeprecatedRule) CopyRule() pepperlint.Rule {
+	return &DeprecatedRule{
+		structRule: &DeprecatedStructRule{},
+		fieldRule:  &DeprecatedFieldRule{},
+		opRule:     &DeprecatedOpRule{},
+	}
 }
 
 // deprecatedFields will map what fields are deprecated in a struct type.
@@ -93,4 +112,13 @@ func hasDeprecatedComment(comments *ast.CommentGroup) bool {
 	}
 
 	return false
+}
+
+func init() {
+	// TODO: make it so the rule has a Pointer return interface or something
+	rules.Add("deprecated", &DeprecatedRule{
+		structRule: &DeprecatedStructRule{},
+		fieldRule:  &DeprecatedFieldRule{},
+		opRule:     &DeprecatedOpRule{},
+	})
 }

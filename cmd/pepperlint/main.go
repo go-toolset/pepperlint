@@ -14,7 +14,6 @@ import (
 	"go/token"
 
 	"github.com/go-toolset/pepperlint"
-	"github.com/go-toolset/pepperlint/rules/core"
 )
 
 // PackageSetBuilder wil lint the directory specified and walk the directory to grab
@@ -160,7 +159,7 @@ func walk(v ast.Visitor, p []Packages) {
 
 // lint will lint the dir while walking the dirs provided to grab necessary metadata
 // from to then validate the dir with the gathered metadata.
-func lint(pkgs []string, pkg string) (*pepperlint.Visitor, Container, error) {
+func lint(config Config, pkgs []string, pkg string) (*pepperlint.Visitor, Container, error) {
 	// Prepends go path
 	gopath := filepath.Join(os.Getenv("GOPATH"), "src")
 	pkg = filepath.Join(gopath, pkg)
@@ -177,8 +176,8 @@ func lint(pkgs []string, pkg string) (*pepperlint.Visitor, Container, error) {
 
 	cache := pepperlint.NewCache()
 
-	rule := core.NewDeprecatedRule(fset)
-	v := pepperlint.NewVisitor(fset, cache, rule)
+	//rule := core.NewDeprecatedRule(fset)
+	v := pepperlint.NewVisitor(fset, cache, config.Options()...)
 
 	walk(cache, container.Packages)
 	walk(cache, container.RulesPackages)
@@ -201,7 +200,18 @@ func main() {
 		"",
 		"comma separated list of directories to be included during linting",
 	)
+
+	configPath := ""
+	flag.StringVar(
+		&configPath,
+		"config-path",
+		"",
+		"path to yaml config",
+	)
+
 	flag.Parse()
+
+	config := buildConfig(configPath)
 
 	tempPkgs := strings.Split(includePkgs, ",")
 	pkgs := []string{}
@@ -214,7 +224,7 @@ func main() {
 	}
 
 	pkg := os.Args[len(os.Args)-1]
-	v, _, err := lint(pkgs, pkg)
+	v, _, err := lint(config, pkgs, pkg)
 	if err != nil {
 		panic(err)
 	}

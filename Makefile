@@ -19,6 +19,7 @@ verify: get-deps lint vet
 
 get-deps:
 	@go get github.com/golang/lint/golint
+	@go get github.com/go-yaml/yaml
 
 lint:
 	@golint ./...
