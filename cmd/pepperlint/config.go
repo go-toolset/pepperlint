@@ -14,10 +14,17 @@ import (
 type Config struct {
 	Rules        Rules        `yaml:"rules"`
 	Suppressions Suppressions `yaml:"suppressions"`
+
+	IncludePkgs []string
 }
 
 // NewConfig returns a new config at a given path.
 func NewConfig(path string) (Config, error) {
+	// return empty config if no path was set
+	if len(path) == 0 {
+		return Config{}, nil
+	}
+
 	b, err := ioutil.ReadFile(path)
 	if err != nil {
 		return Config{}, err
@@ -80,6 +87,5 @@ func buildConfig(configPath string) Config {
 	}
 
 	// TODO get rules and suppressions from flags instead
-
 	return Config{}
 }

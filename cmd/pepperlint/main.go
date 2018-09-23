@@ -1,13 +1,11 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"log"
 	"os"
 	"path/filepath"
 	"sort"
-	"strings"
 
 	"go/ast"
 	"go/parser"
@@ -193,29 +191,15 @@ func main() {
 
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 
-	includePkgs := ""
-	flag.StringVar(
-		&includePkgs,
-		"include-pkgs",
-		"",
-		"comma separated list of directories to be included during linting",
-	)
+	f := newFlags()
+	config := buildConfig(f.ConfigPath)
+	config = f.Merge(config)
 
-	configPath := ""
-	flag.StringVar(
-		&configPath,
-		"config-path",
-		"",
-		"path to yaml config",
-	)
-
-	flag.Parse()
-
-	config := buildConfig(configPath)
-
-	tempPkgs := strings.Split(includePkgs, ",")
+	// TODO:
+	// Do we still need to move this into the pkgs variable?
+	// Can we not use config.IncludePkgs instead?
 	pkgs := []string{}
-	for _, p := range tempPkgs {
+	for _, p := range config.IncludePkgs {
 		if len(p) == 0 {
 			continue
 		}
@@ -229,8 +213,8 @@ func main() {
 		panic(err)
 	}
 
-	fmt.Fprintf(os.Stderr, "%v", v.Errors)
 	if len(v.Errors) != 0 {
+		fmt.Fprintf(os.Stderr, "%v", v.Errors)
 		os.Exit(1)
 	}
 }

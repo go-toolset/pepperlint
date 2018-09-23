@@ -14,13 +14,18 @@ type DeprecatedStructRule struct {
 	fset           *token.FileSet
 	currentPkgName string
 	helper         pepperlint.Helper
+
+	// need to keep track of which call expr were visited due to
+	// assignment statement also calling ValidateCallExpr.
+	visitedCallExpr map[*ast.CallExpr]struct{}
 }
 
 // NewDeprecatedStructRule return a newly instantiated DeprecatedStructRule
 // with the given file set.
 func NewDeprecatedStructRule(fset *token.FileSet) *DeprecatedStructRule {
 	return &DeprecatedStructRule{
-		fset: fset,
+		fset:            fset,
+		visitedCallExpr: map[*ast.CallExpr]struct{}{},
 	}
 }
 
@@ -312,6 +317,13 @@ func (r DeprecatedStructRule) checkTypeAliases(rhs ast.Node, expr ast.Expr) []er
 // ValidateCallExpr will ensure a deprecated struct is not being passed as a parameter
 func (r DeprecatedStructRule) ValidateCallExpr(expr *ast.CallExpr) error {
 	batchError := pepperlint.NewBatchError()
+	if _, ok := r.visitedCallExpr[expr]; ok {
+		return nil
+	}
+
+	defer func() {
+		r.visitedCallExpr[expr] = struct{}{}
+	}()
 
 	for _, arg := range expr.Args {
 		if errs := r.validateCallExpr(expr, arg); len(errs) > 0 {

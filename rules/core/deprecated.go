@@ -53,9 +53,11 @@ func (r DeprecatedRule) WithFileSet(fset *token.FileSet) {
 // current DeprecatedRule
 func (r DeprecatedRule) CopyRule() pepperlint.Rule {
 	return &DeprecatedRule{
-		structRule: &DeprecatedStructRule{},
-		fieldRule:  &DeprecatedFieldRule{},
-		opRule:     &DeprecatedOpRule{},
+		structRule: &DeprecatedStructRule{
+			visitedCallExpr: map[*ast.CallExpr]struct{}{},
+		},
+		fieldRule: &DeprecatedFieldRule{},
+		opRule:    &DeprecatedOpRule{},
 	}
 }
 
