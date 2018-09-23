@@ -225,14 +225,14 @@ func (c *Cache) Visit(node ast.Node) ast.Visitor {
 
 		importPath, err := strconv.Unquote(t.Path.Value)
 		if err != nil {
-			panic(err)
+			importPath = t.Path.Value
 		}
 
 		f := pkg.Files[len(pkg.Files)-1]
 		if t.Name != nil {
 			name, err := strconv.Unquote(t.Name.Name)
 			if err != nil {
-				panic(err)
+				name = t.Name.Name
 			}
 
 			f.Imports[name] = importPath
