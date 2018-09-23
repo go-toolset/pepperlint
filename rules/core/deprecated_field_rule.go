@@ -442,7 +442,14 @@ func (r *DeprecatedFieldRule) AddRules(visitorRules *pepperlint.Rules) {
 	visitorRules.Merge(rules)
 }
 
-// WithCache .
+// WithCache will create a new helper with the given cache. This is used
+// to determine infomation about a specific ast.Node.
 func (r *DeprecatedFieldRule) WithCache(cache *pepperlint.Cache) {
 	r.helper = pepperlint.NewHelper(cache)
+}
+
+// WithFileSet will set the token.FileSet to the rule allowing for more
+// in depth errors.
+func (r *DeprecatedFieldRule) WithFileSet(fset *token.FileSet) {
+	r.fset = fset
 }

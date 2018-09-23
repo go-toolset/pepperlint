@@ -14,7 +14,7 @@ type Visitor struct {
 
 	PackagesCache *Cache
 
-	FSet *token.FileSet
+	FileSet *token.FileSet
 
 	currentPkgImportPath string
 }
@@ -23,11 +23,15 @@ type Visitor struct {
 // the adders parameter.
 func NewVisitor(fset *token.FileSet, cache *Cache, opts ...Option) *Visitor {
 	v := &Visitor{
-		FSet:          fset,
+		FileSet:       fset,
 		PackagesCache: cache,
 	}
 
 	for _, o := range opts {
+		if opt, ok := o.(FileSetOption); ok {
+			opt.WithFileSet(fset)
+		}
+
 		if opt, ok := o.(RulesAdder); ok {
 			opt.AddRules(&v.Rules)
 		}

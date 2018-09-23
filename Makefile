@@ -11,14 +11,16 @@ unit-race: build verify
 	@echo "Testing all pepperlint packages with race enabled"
 	@go test -v -race -cpu=1,2,4 ./...
 
-build:
+build: get-deps
 	@echo "Building pepperlint packages"
 	@go build ${PEPPERLINT_PKGS}
 
-verify: get-deps lint vet
+verify: lint vet
 
 get-deps:
-	@go get github.com/golang/lint/golint
+	@echo "Getting dependencies"
+	@go get -u github.com/golang/lint/golint
+	@go get -u github.com/go-yaml/yaml
 
 lint:
 	@golint ./...

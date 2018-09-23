@@ -1,20 +1,17 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"log"
 	"os"
 	"path/filepath"
 	"sort"
-	"strings"
 
 	"go/ast"
 	"go/parser"
 	"go/token"
 
 	"github.com/go-toolset/pepperlint"
-	"github.com/go-toolset/pepperlint/rules/core"
 )
 
 // PackageSetBuilder wil lint the directory specified and walk the directory to grab
@@ -160,7 +157,7 @@ func walk(v ast.Visitor, p []Packages) {
 
 // lint will lint the dir while walking the dirs provided to grab necessary metadata
 // from to then validate the dir with the gathered metadata.
-func lint(pkgs []string, pkg string) (*pepperlint.Visitor, Container, error) {
+func lint(config Config, pkgs []string, pkg string) (*pepperlint.Visitor, Container, error) {
 	// Prepends go path
 	gopath := filepath.Join(os.Getenv("GOPATH"), "src")
 	pkg = filepath.Join(gopath, pkg)
@@ -177,8 +174,8 @@ func lint(pkgs []string, pkg string) (*pepperlint.Visitor, Container, error) {
 
 	cache := pepperlint.NewCache()
 
-	rule := core.NewDeprecatedRule(fset)
-	v := pepperlint.NewVisitor(fset, cache, rule)
+	//rule := core.NewDeprecatedRule(fset)
+	v := pepperlint.NewVisitor(fset, cache, config.Options()...)
 
 	walk(cache, container.Packages)
 	walk(cache, container.RulesPackages)
@@ -194,18 +191,15 @@ func main() {
 
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 
-	includePkgs := ""
-	flag.StringVar(
-		&includePkgs,
-		"include-pkgs",
-		"",
-		"comma separated list of directories to be included during linting",
-	)
-	flag.Parse()
+	f := newFlags()
+	config := buildConfig(f.ConfigPath)
+	config = f.Merge(config)
 
-	tempPkgs := strings.Split(includePkgs, ",")
+	// TODO:
+	// Do we still need to move this into the pkgs variable?
+	// Can we not use config.IncludePkgs instead?
 	pkgs := []string{}
-	for _, p := range tempPkgs {
+	for _, p := range config.IncludePkgs {
 		if len(p) == 0 {
 			continue
 		}
@@ -214,13 +208,13 @@ func main() {
 	}
 
 	pkg := os.Args[len(os.Args)-1]
-	v, _, err := lint(pkgs, pkg)
+	v, _, err := lint(config, pkgs, pkg)
 	if err != nil {
 		panic(err)
 	}
 
-	fmt.Fprintf(os.Stderr, "%v", v.Errors)
 	if len(v.Errors) != 0 {
+		fmt.Fprintf(os.Stderr, "%v", v.Errors)
 		os.Exit(1)
 	}
 }
