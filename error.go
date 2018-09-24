@@ -7,11 +7,23 @@ import (
 	"go/token"
 )
 
-// LineNumberError is an interface that wraps an
-// error and contains where the error occurred
-type LineNumberError interface {
+// FileError is an error interface that will represent an error and where it
+// occurred.
+type FileError interface {
 	error
+
+	LineNumber
+	Filename
+}
+
+// LineNumber is used to return a line number of where an error occurred.
+type LineNumber interface {
 	LineNumber() int
+}
+
+// Filename is the filename of where the error occurred.
+type Filename interface {
+	Filename() string
 }
 
 // ErrorWrap will extract the line number from the ast.Node provided.
@@ -44,6 +56,11 @@ func (e *ErrorWrap) Error() string {
 // LineNumber return the line number to which the error occurred
 func (e *ErrorWrap) LineNumber() int {
 	return e.pos.Line
+}
+
+// Filename will return the filename of where the error occurred
+func (e *ErrorWrap) Filename() string {
+	return e.pos.Filename
 }
 
 // BatchError groups a set of errors together usually to organize
