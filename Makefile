@@ -19,8 +19,8 @@ verify: lint vet
 
 get-deps:
 	@echo "Getting dependencies"
-	@go get -u github.com/golang/lint/golint
-	@go get -u github.com/go-yaml/yaml
+	@go get github.com/golang/lint/golint
+	@go get github.com/go-yaml/yaml
 
 lint:
 	@golint ./...
