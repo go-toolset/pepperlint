@@ -184,6 +184,45 @@ func lint(config Config, pkgs []string, pkg string) (*pepperlint.Visitor, Contai
 	return v, container, nil
 }
 
+func suppress(suppressions Suppressions, errs pepperlint.Errors) []error {
+	s := map[string]File{}
+	validErrs := []error{}
+
+	for _, sup := range suppressions {
+		if sup.File == nil {
+			continue
+		}
+
+		s[sup.File.FilePath] = *sup.File
+	}
+
+	for _, err := range errs {
+		e, ok := err.(pepperlint.FileError)
+		if !ok {
+			validErrs = append(validErrs, err)
+			continue
+		}
+
+		supRule, ok := s[e.Filename()]
+		if !ok {
+			validErrs = append(validErrs, err)
+			continue
+		}
+
+		if supRule.LineNumber == nil {
+			continue
+		}
+
+		if e.LineNumber() == *supRule.LineNumber {
+			continue
+		}
+
+		validErrs = append(validErrs, err)
+	}
+
+	return validErrs
+}
+
 func main() {
 	if len(os.Args) < 2 {
 		log.Fatalf("directory needs to be provided")
@@ -213,8 +252,9 @@ func main() {
 		panic(err)
 	}
 
-	if len(v.Errors) != 0 {
-		fmt.Fprintf(os.Stderr, "%v", v.Errors)
+	errs := suppress(config.Suppressions, v.Errors)
+	if len(errs) != 0 {
+		fmt.Fprintf(os.Stderr, "%v", errs)
 		os.Exit(1)
 	}
 }
