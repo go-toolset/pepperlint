@@ -78,6 +78,10 @@ func (r DeprecatedFieldRule) isDeprecatedField(expr *ast.SelectorExpr) error {
 		}
 	}
 
+	if info.Spec == nil {
+		return nil
+	}
+
 	depField := r.helper.GetFieldByName(expr.Sel.Name, info.Spec)
 	if depField == nil {
 		return nil
@@ -112,6 +116,10 @@ func (r DeprecatedFieldRule) checkBinaryExprFields(bexpr *ast.BinaryExpr) []erro
 
 			info, ok := infos.GetByVarName(ident.Name)
 			if !ok {
+				continue
+			}
+
+			if info.Spec == nil {
 				continue
 			}
 

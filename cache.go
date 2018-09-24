@@ -247,6 +247,15 @@ func (c *Cache) Visit(node ast.Node) ast.Visitor {
 			break
 		}
 
+		// Issue #13
+		//
+		// Was squashing over package names that may exist in the same package
+		// but contain a pkg_test format. That would mean all previous cached
+		// files would be lost
+		if _, ok := c.Packages[c.currentPkgImportPath]; ok {
+			return c
+		}
+
 		c.Packages[c.currentPkgImportPath] = &Package{
 			Name: GetPackageNameFromImportPath(c.currentPkgImportPath),
 		}

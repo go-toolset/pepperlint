@@ -284,9 +284,17 @@ func (r DeprecatedStructRule) checkTypeAliases(rhs ast.Node, expr ast.Expr) []er
 
 	switch t := expr.(type) {
 	case *ast.Ident:
+		if t.Obj == nil {
+			return nil
+		}
+
+		if t.Obj.Decl == nil {
+			return nil
+		}
+
 		spec, ok := t.Obj.Decl.(*ast.TypeSpec)
 		if !ok {
-			return errs
+			return nil
 		}
 
 		pkg, ok := r.helper.PackagesCache.CurrentPackage()
@@ -296,7 +304,7 @@ func (r DeprecatedStructRule) checkTypeAliases(rhs ast.Node, expr ast.Expr) []er
 
 		info, ok := pkg.Files.GetTypeInfo(spec.Name.Name)
 		if !ok {
-			return errs
+			return nil
 		}
 
 		if hasDeprecatedComment(info.Doc) {

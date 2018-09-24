@@ -254,7 +254,7 @@ func main() {
 
 	errs := suppress(config.Suppressions, v.Errors)
 	if len(errs) != 0 {
-		fmt.Fprintf(os.Stderr, "%v", errs)
+		fmt.Fprintf(os.Stderr, "%v", pepperlint.Errors(errs))
 		os.Exit(1)
 	}
 }
