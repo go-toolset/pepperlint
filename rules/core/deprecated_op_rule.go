@@ -125,7 +125,9 @@ func (r *DeprecatedOpRule) getExternalTypeSpec(rhs ast.Expr) (pepperlint.TypeInf
 		importPath := file.Imports[pkgName]
 		pkg, ok := r.helper.PackagesCache.Packages.Get(importPath)
 		if !ok {
-			panic(fmt.Errorf("package, %q, does not exist in cache", importPath))
+			// this occurs when an import from the standard library is called or any
+			// other import that wasn't included in the config or cli by using -include-pkgs
+			return pepperlint.TypeInfo{}, false
 		}
 
 		info, ok := pkg.Files.GetTypeInfo(typeName)
