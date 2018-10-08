@@ -36,7 +36,7 @@ func TestCacheCurrentPackage(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			cache := Cache{
 				Packages:             c.packages,
-				currentPkgImportPath: c.pkgImportPath,
+				CurrentPkgImportPath: c.pkgImportPath,
 			}
 
 			pkg, ok := cache.CurrentPackage()
@@ -107,8 +107,8 @@ func TestCacheCurrentFile(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			cache := Cache{
 				Packages:             c.packages,
-				currentPkgImportPath: c.pkgImportPath,
-				currentFile:          c.fileAST,
+				CurrentPkgImportPath: c.pkgImportPath,
+				CurrentASTFile:       c.fileAST,
 			}
 
 			file, ok := cache.CurrentFile()
@@ -235,7 +235,7 @@ func TestCacheGetTypeInfo(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			cache := Cache{
 				Packages:             c.packages,
-				currentPkgImportPath: c.pkgImportPath,
+				CurrentPkgImportPath: c.pkgImportPath,
 			}
 
 			pkg, ok := cache.CurrentPackage()
@@ -303,7 +303,7 @@ func TestCacheGetOpInfo(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			cache := Cache{
 				Packages:             c.packages,
-				currentPkgImportPath: c.pkgImportPath,
+				CurrentPkgImportPath: c.pkgImportPath,
 			}
 
 			pkg, ok := cache.CurrentPackage()

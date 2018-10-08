@@ -1,4 +1,4 @@
-package core_test
+package deprecated_test
 
 import (
 	"go/ast"
@@ -7,14 +7,14 @@ import (
 	"testing"
 
 	"github.com/go-toolset/pepperlint"
-	"github.com/go-toolset/pepperlint/rules/core"
+	"github.com/go-toolset/pepperlint/rules/core/deprecated"
 )
 
-func TestDeprecatedStructRule(t *testing.T) {
+func TestStructRule(t *testing.T) {
 	cases := []struct {
 		name           string
 		code           string
-		rulesFn        func(fset *token.FileSet) *core.DeprecatedStructRule
+		rulesFn        func(fset *token.FileSet) *deprecated.StructRule
 		expectedErrors int
 	}{
 		{
@@ -33,8 +33,8 @@ func deprecated() interface{} {
 	}
 }
 			`,
-			rulesFn: func(fset *token.FileSet) *core.DeprecatedStructRule {
-				return core.NewDeprecatedStructRule(fset)
+			rulesFn: func(fset *token.FileSet) *deprecated.StructRule {
+				return deprecated.NewStructRule(fset)
 			},
 			expectedErrors: 1,
 		},
@@ -66,8 +66,8 @@ func deprecated() interface{} {
 	if moo == nil {
 	}
 }`,
-			rulesFn: func(fset *token.FileSet) *core.DeprecatedStructRule {
-				return core.NewDeprecatedStructRule(fset)
+			rulesFn: func(fset *token.FileSet) *deprecated.StructRule {
+				return deprecated.NewStructRule(fset)
 			},
 			expectedErrors: 3,
 		},
@@ -106,8 +106,8 @@ func deprecated() interface{} {
 		{},
 	}
 }`,
-			rulesFn: func(fset *token.FileSet) *core.DeprecatedStructRule {
-				return core.NewDeprecatedStructRule(fset)
+			rulesFn: func(fset *token.FileSet) *deprecated.StructRule {
+				return deprecated.NewStructRule(fset)
 			},
 			expectedErrors: 4,
 		},
@@ -144,8 +144,8 @@ func deprecated() interface{} {
 
 	return moo
 }`,
-			rulesFn: func(fset *token.FileSet) *core.DeprecatedStructRule {
-				return core.NewDeprecatedStructRule(fset)
+			rulesFn: func(fset *token.FileSet) *deprecated.StructRule {
+				return deprecated.NewStructRule(fset)
 			},
 			expectedErrors: 6,
 		},
@@ -181,8 +181,8 @@ func deprecated() interface{} {
 
 func check(v interface{}) {
 }`,
-			rulesFn: func(fset *token.FileSet) *core.DeprecatedStructRule {
-				return core.NewDeprecatedStructRule(fset)
+			rulesFn: func(fset *token.FileSet) *deprecated.StructRule {
+				return deprecated.NewStructRule(fset)
 			},
 			expectedErrors: 6,
 		},
@@ -203,8 +203,8 @@ func DeprecatedReturn() Foo {
 	return Foo{}
 }
 `,
-			rulesFn: func(fset *token.FileSet) *core.DeprecatedStructRule {
-				return core.NewDeprecatedStructRule(fset)
+			rulesFn: func(fset *token.FileSet) *deprecated.StructRule {
+				return deprecated.NewStructRule(fset)
 			},
 			expectedErrors: 3,
 		},

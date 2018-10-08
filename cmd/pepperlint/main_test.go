@@ -15,7 +15,7 @@ func TestMain(t *testing.T) {
 		expectedLineNumbers []int
 	}{
 		{
-			mainPackage: "github.com/go-toolset/pepperlint/cmd/pepperlint/testdata/core",
+			mainPackage: "./testdata/core",
 			includeDirs: []string{
 				"github.com/go-toolset/pepperlint/cmd/pepperlint/testdata/deprecated",
 			},
@@ -49,10 +49,11 @@ func TestMain(t *testing.T) {
 		config := Config{
 			Rules: Rules{
 				{
-					RuleName: "deprecated",
+					RuleName: "core/deprecated",
 				},
 			},
 		}
+
 		v, _, err := lint(config, c.includeDirs, c.mainPackage)
 		if err != nil {
 			t.Fatal(err)

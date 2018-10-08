@@ -1,4 +1,4 @@
-package core_test
+package deprecated_test
 
 import (
 	"go/ast"
@@ -7,14 +7,14 @@ import (
 	"testing"
 
 	"github.com/go-toolset/pepperlint"
-	"github.com/go-toolset/pepperlint/rules/core"
+	"github.com/go-toolset/pepperlint/rules/core/deprecated"
 )
 
 func TestDeprecateOpRule(t *testing.T) {
 	cases := []struct {
 		name           string
 		code           string
-		rulesFn        func(fset *token.FileSet) *core.DeprecatedOpRule
+		rulesFn        func(fset *token.FileSet) *deprecated.OpRule
 		expectedErrors int
 	}{
 		{
@@ -51,8 +51,8 @@ func TestDeprecateOpRule(t *testing.T) {
 				v := DeprecatedFunction()
 			}
 			`,
-			rulesFn: func(fset *token.FileSet) *core.DeprecatedOpRule {
-				return core.NewDeprecatedOpRule(fset)
+			rulesFn: func(fset *token.FileSet) *deprecated.OpRule {
+				return deprecated.NewOpRule(fset)
 			},
 			expectedErrors: 4,
 		},

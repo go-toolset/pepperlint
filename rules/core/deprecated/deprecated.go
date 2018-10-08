@@ -1,4 +1,4 @@
-package core
+package deprecated
 
 import (
 	"go/ast"
@@ -11,31 +11,31 @@ import (
 
 const deprecatedPrefix = `// Deprecated:`
 
-// DeprecatedRule is a container for all deprecated rules
-type DeprecatedRule struct {
-	structRule *DeprecatedStructRule
-	fieldRule  *DeprecatedFieldRule
-	opRule     *DeprecatedOpRule
+// Rule is a container for all deprecated rules
+type Rule struct {
+	structRule *StructRule
+	fieldRule  *FieldRule
+	opRule     *OpRule
 }
 
-// NewDeprecatedRule will return a new set of deprecated rules
-func NewDeprecatedRule(fset *token.FileSet) *DeprecatedRule {
-	return &DeprecatedRule{
-		structRule: NewDeprecatedStructRule(fset),
-		fieldRule:  NewDeprecatedFieldRule(fset),
-		opRule:     NewDeprecatedOpRule(fset),
+// NewRule will return a new set of deprecated rules
+func NewRule(fset *token.FileSet) *Rule {
+	return &Rule{
+		structRule: NewStructRule(fset),
+		fieldRule:  NewFieldRule(fset),
+		opRule:     NewOpRule(fset),
 	}
 }
 
 // AddRules will add rules for every deprecate rule
-func (r *DeprecatedRule) AddRules(rules *pepperlint.Rules) {
+func (r *Rule) AddRules(rules *pepperlint.Rules) {
 	r.structRule.AddRules(rules)
 	r.fieldRule.AddRules(rules)
 	r.opRule.AddRules(rules)
 }
 
 // WithCache will add rules for every deprecate rule
-func (r *DeprecatedRule) WithCache(cache *pepperlint.Cache) {
+func (r *Rule) WithCache(cache *pepperlint.Cache) {
 	r.structRule.WithCache(cache)
 	r.fieldRule.WithCache(cache)
 	r.opRule.WithCache(cache)
@@ -43,21 +43,21 @@ func (r *DeprecatedRule) WithCache(cache *pepperlint.Cache) {
 
 // WithFileSet sets the file sets to each rule inside the deprecated
 // rule container.
-func (r DeprecatedRule) WithFileSet(fset *token.FileSet) {
+func (r Rule) WithFileSet(fset *token.FileSet) {
 	r.structRule.WithFileSet(fset)
 	r.fieldRule.WithFileSet(fset)
 	r.opRule.WithFileSet(fset)
 }
 
 // CopyRule satisfies the copy ruler interface to copy the
-// current DeprecatedRule
-func (r DeprecatedRule) CopyRule() pepperlint.Rule {
-	return &DeprecatedRule{
-		structRule: &DeprecatedStructRule{
+// current Rule
+func (r Rule) CopyRule() pepperlint.Rule {
+	return &Rule{
+		structRule: &StructRule{
 			visitedCallExpr: map[*ast.CallExpr]struct{}{},
 		},
-		fieldRule: &DeprecatedFieldRule{},
-		opRule:    &DeprecatedOpRule{},
+		fieldRule: &FieldRule{},
+		opRule:    &OpRule{},
 	}
 }
 
@@ -118,9 +118,9 @@ func hasDeprecatedComment(comments *ast.CommentGroup) bool {
 
 func init() {
 	// TODO: make it so the rule has a Pointer return interface or something
-	rules.Add("deprecated", &DeprecatedRule{
-		structRule: &DeprecatedStructRule{},
-		fieldRule:  &DeprecatedFieldRule{},
-		opRule:     &DeprecatedOpRule{},
+	rules.Add("core/deprecated", &Rule{
+		structRule: &StructRule{},
+		fieldRule:  &FieldRule{},
+		opRule:     &OpRule{},
 	})
 }

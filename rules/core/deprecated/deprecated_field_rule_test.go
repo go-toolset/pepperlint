@@ -1,4 +1,4 @@
-package core_test
+package deprecated_test
 
 import (
 	"go/ast"
@@ -7,14 +7,14 @@ import (
 	"testing"
 
 	"github.com/go-toolset/pepperlint"
-	"github.com/go-toolset/pepperlint/rules/core"
+	"github.com/go-toolset/pepperlint/rules/core/deprecated"
 )
 
 func TestDeprecateFieldRule(t *testing.T) {
 	cases := []struct {
 		name           string
 		code           string
-		rulesFn        func(fset *token.FileSet) *core.DeprecatedFieldRule
+		rulesFn        func(fset *token.FileSet) *deprecated.FieldRule
 		expectedErrors int
 	}{
 		{
@@ -34,8 +34,8 @@ func TestDeprecateFieldRule(t *testing.T) {
 					123,
 				}
 			}`,
-			rulesFn: func(fset *token.FileSet) *core.DeprecatedFieldRule {
-				return core.NewDeprecatedFieldRule(fset)
+			rulesFn: func(fset *token.FileSet) *deprecated.FieldRule {
+				return deprecated.NewFieldRule(fset)
 			},
 			expectedErrors: 2,
 		},
@@ -59,8 +59,8 @@ func TestDeprecateFieldRule(t *testing.T) {
 				f.DeprecatedField	= 2 + 1
 				n := f.DeprecatedField + 1
 			}`,
-			rulesFn: func(fset *token.FileSet) *core.DeprecatedFieldRule {
-				return core.NewDeprecatedFieldRule(fset)
+			rulesFn: func(fset *token.FileSet) *deprecated.FieldRule {
+				return deprecated.NewFieldRule(fset)
 			},
 			expectedErrors: 8,
 		},
@@ -80,8 +80,8 @@ func TestDeprecateFieldRule(t *testing.T) {
 				f.DeprecatedField = []int{4,5,6}
 				f.DeprecatedField = append(f.DeprecatedField, 7)
 			}`,
-			rulesFn: func(fset *token.FileSet) *core.DeprecatedFieldRule {
-				return core.NewDeprecatedFieldRule(fset)
+			rulesFn: func(fset *token.FileSet) *deprecated.FieldRule {
+				return deprecated.NewFieldRule(fset)
 			},
 			expectedErrors: 4,
 		},
@@ -109,8 +109,8 @@ func TestDeprecateFieldRule(t *testing.T) {
 			
 			func depOp(v int) {
 			}`,
-			rulesFn: func(fset *token.FileSet) *core.DeprecatedFieldRule {
-				return core.NewDeprecatedFieldRule(fset)
+			rulesFn: func(fset *token.FileSet) *deprecated.FieldRule {
+				return deprecated.NewFieldRule(fset)
 			},
 			expectedErrors: 3,
 		},
@@ -145,8 +145,8 @@ func TestDeprecateFieldRule(t *testing.T) {
 				return nil
 			}
 			`,
-			rulesFn: func(fset *token.FileSet) *core.DeprecatedFieldRule {
-				return core.NewDeprecatedFieldRule(fset)
+			rulesFn: func(fset *token.FileSet) *deprecated.FieldRule {
+				return deprecated.NewFieldRule(fset)
 			},
 			expectedErrors: 7,
 		},
@@ -220,8 +220,8 @@ func TestDeprecateFieldRule(t *testing.T) {
 			func checkArr(v []int32) {
 			}
 			`,
-			rulesFn: func(fset *token.FileSet) *core.DeprecatedFieldRule {
-				return core.NewDeprecatedFieldRule(fset)
+			rulesFn: func(fset *token.FileSet) *deprecated.FieldRule {
+				return deprecated.NewFieldRule(fset)
 			},
 			// TODO: Is this number correct?
 			expectedErrors: 22,

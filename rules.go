@@ -61,6 +61,7 @@ func (r *Rules) Merge(otherRules Rules) *Rules {
 	r.CallExprRules = append(r.CallExprRules, otherRules.CallExprRules...)
 	r.BinaryExprRules = append(r.BinaryExprRules, otherRules.BinaryExprRules...)
 	r.ReturnStmtRules = append(r.ReturnStmtRules, otherRules.ReturnStmtRules...)
+	r.FileRules = append(r.FileRules, otherRules.FileRules...)
 
 	return r
 }

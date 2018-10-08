@@ -56,13 +56,13 @@ func (v *Visitor) Visit(node ast.Node) ast.Visitor {
 	switch t := node.(type) {
 	case *ast.Package:
 		for k := range t.Files {
-			v.PackagesCache.currentPkgImportPath = GetImportPathFromFullPath(filepath.Dir(k))
+			v.PackagesCache.CurrentPkgImportPath = GetImportPathFromFullPath(filepath.Dir(k))
 			break
 		}
 
 		v.visitPackage(t)
 	case *ast.File:
-		v.PackagesCache.currentFile = t
+		v.PackagesCache.CurrentASTFile = t
 
 		v.visitFile(t)
 	case ast.Decl:

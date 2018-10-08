@@ -10,8 +10,8 @@ import (
 // Cache defintion that contain type information per package.
 type Cache struct {
 	Packages             Packages
-	currentPkgImportPath string
-	currentFile          *ast.File
+	CurrentPkgImportPath string
+	CurrentASTFile       *ast.File
 }
 
 // NewCache will return a new cache along with initializing any fields.
@@ -21,10 +21,10 @@ func NewCache() *Cache {
 	}
 }
 
-// CurrentPackage will attempt to return the current package. If currentPkgImportPath
+// CurrentPackage will attempt to return the current package. If CurrentPkgImportPath
 // was not found in the map, then false will be returned.
 func (c Cache) CurrentPackage() (*Package, bool) {
-	v, ok := c.Packages[c.currentPkgImportPath]
+	v, ok := c.Packages[c.CurrentPkgImportPath]
 	return v, ok
 }
 
@@ -37,7 +37,7 @@ func (c Cache) CurrentFile() (*File, bool) {
 	}
 
 	for _, f := range pkg.Files {
-		if f.ASTFile == c.currentFile {
+		if f.ASTFile == c.CurrentASTFile {
 			return f, true
 		}
 	}
@@ -181,11 +181,11 @@ func (c *Cache) getTypeFromField(expr ast.Expr) (*ast.TypeSpec, bool) {
 func (c *Cache) Visit(node ast.Node) ast.Visitor {
 	switch t := node.(type) {
 	case *ast.FuncDecl:
-		pkg, ok := c.Packages.Get(c.currentPkgImportPath)
+		pkg, ok := c.Packages.Get(c.CurrentPkgImportPath)
 
 		if !ok {
 			pkg = &Package{}
-			c.Packages[c.currentPkgImportPath] = pkg
+			c.Packages[c.CurrentPkgImportPath] = pkg
 		}
 
 		// Get most recent file
@@ -243,7 +243,7 @@ func (c *Cache) Visit(node ast.Node) ast.Visitor {
 	case *ast.Package:
 		// iterate through files to get the full path of the file
 		for k := range t.Files {
-			c.currentPkgImportPath = GetImportPathFromFullPath(filepath.Dir(k))
+			c.CurrentPkgImportPath = GetImportPathFromFullPath(filepath.Dir(k))
 			break
 		}
 
@@ -252,28 +252,28 @@ func (c *Cache) Visit(node ast.Node) ast.Visitor {
 		// Was squashing over package names that may exist in the same package
 		// but contain a pkg_test format. That would mean all previous cached
 		// files would be lost
-		if _, ok := c.Packages[c.currentPkgImportPath]; ok {
+		if _, ok := c.Packages[c.CurrentPkgImportPath]; ok {
 			return c
 		}
 
-		c.Packages[c.currentPkgImportPath] = &Package{
-			Name: GetPackageNameFromImportPath(c.currentPkgImportPath),
+		c.Packages[c.CurrentPkgImportPath] = &Package{
+			Name: GetPackageNameFromImportPath(c.CurrentPkgImportPath),
 		}
 	case *ast.File:
-		pkg, ok := c.Packages.Get(c.currentPkgImportPath)
+		pkg, ok := c.Packages.Get(c.CurrentPkgImportPath)
 		if !ok {
-			panic(fmt.Errorf("package import path not found: %q", c.currentPkgImportPath))
+			panic(fmt.Errorf("package import path not found: %q", c.CurrentPkgImportPath))
 		}
 
 		pkg.Files = append(pkg.Files, NewFile(t))
 	case *ast.GenDecl:
-		pkg, ok := c.Packages.Get(c.currentPkgImportPath)
+		pkg, ok := c.Packages.Get(c.CurrentPkgImportPath)
 		if !ok {
-			panic(fmt.Errorf("package import path not found: %q", c.currentPkgImportPath))
+			panic(fmt.Errorf("package import path not found: %q", c.CurrentPkgImportPath))
 		}
 
 		f := pkg.Files[len(pkg.Files)-1]
-		pkgName := GetPackageNameFromImportPath(c.currentPkgImportPath)
+		pkgName := GetPackageNameFromImportPath(c.CurrentPkgImportPath)
 
 		for _, spec := range t.Specs {
 			switch spec := spec.(type) {
