@@ -1,4 +1,4 @@
-package core
+package deprecated
 
 import (
 	"fmt"
@@ -8,8 +8,8 @@ import (
 	"github.com/go-toolset/pepperlint"
 )
 
-// DeprecatedFieldRule will check usage of a deprecated field by field name.
-type DeprecatedFieldRule struct {
+// FieldRule will check usage of a deprecated field by field name.
+type FieldRule struct {
 	fset           *token.FileSet
 	currentPkgName string
 	helper         pepperlint.Helper
@@ -50,16 +50,16 @@ func (f fieldInfos) GetByField() (fieldInfo, bool) {
 	return fieldInfo{}, false
 }
 
-// NewDeprecatedFieldRule will return a new deprecation rule for fields.
+// NewFieldRule will return a new deprecation rule for fields.
 // Any field is used that is marked with the deprecated comment will emit
 // an error.
-func NewDeprecatedFieldRule(fset *token.FileSet) *DeprecatedFieldRule {
-	return &DeprecatedFieldRule{
+func NewFieldRule(fset *token.FileSet) *FieldRule {
+	return &FieldRule{
 		fset: fset,
 	}
 }
 
-func (r DeprecatedFieldRule) isDeprecatedField(expr *ast.SelectorExpr) error {
+func (r FieldRule) isDeprecatedField(expr *ast.SelectorExpr) error {
 	ident, ok := expr.X.(*ast.Ident)
 	if !ok {
 		return nil
@@ -95,7 +95,7 @@ func (r DeprecatedFieldRule) isDeprecatedField(expr *ast.SelectorExpr) error {
 
 // checkBinaryExprFields will iterate through the binary expr lhs and rhs to determine
 // if deprecated fields are being used
-func (r DeprecatedFieldRule) checkBinaryExprFields(bexpr *ast.BinaryExpr) []error {
+func (r FieldRule) checkBinaryExprFields(bexpr *ast.BinaryExpr) []error {
 	errs := []error{}
 	exprs := []ast.Expr{bexpr.X, bexpr.Y}
 
@@ -150,7 +150,7 @@ func (r DeprecatedFieldRule) checkBinaryExprFields(bexpr *ast.BinaryExpr) []erro
 
 // getFieldInfo will inspect the expr and attempt to pull out necessary information
 // about the expr to ensure no deprecated field is used.
-func (r DeprecatedFieldRule) getFieldInfo(expr ast.Expr) fieldInfos {
+func (r FieldRule) getFieldInfo(expr ast.Expr) fieldInfos {
 	switch t := expr.(type) {
 	case *ast.Ident:
 		if t.Obj == nil || t.Obj.Decl == nil {
@@ -165,7 +165,7 @@ func (r DeprecatedFieldRule) getFieldInfo(expr ast.Expr) fieldInfos {
 	return nil
 }
 
-func (r DeprecatedFieldRule) getFieldInfoFromDecl(decl interface{}) fieldInfos {
+func (r FieldRule) getFieldInfoFromDecl(decl interface{}) fieldInfos {
 	infos := fieldInfos{}
 
 	switch t := decl.(type) {
@@ -242,7 +242,7 @@ func (r DeprecatedFieldRule) getFieldInfoFromDecl(decl interface{}) fieldInfos {
 }
 
 // ValidateAssignStmt will check to see if a deprecated field is being set or used.
-func (r DeprecatedFieldRule) ValidateAssignStmt(stmt *ast.AssignStmt) error {
+func (r FieldRule) ValidateAssignStmt(stmt *ast.AssignStmt) error {
 	batchError := pepperlint.NewBatchError()
 
 	infos := r.getFieldInfoFromDecl(stmt)
@@ -339,7 +339,7 @@ func (r DeprecatedFieldRule) ValidateAssignStmt(stmt *ast.AssignStmt) error {
 
 // ValidateCallExpr will ensure that the deprecated field is not being passed
 // as a parameter to a function or method.
-func (r DeprecatedFieldRule) ValidateCallExpr(expr *ast.CallExpr) error {
+func (r FieldRule) ValidateCallExpr(expr *ast.CallExpr) error {
 	batchError := pepperlint.NewBatchError()
 
 	for _, arg := range expr.Args {
@@ -359,7 +359,7 @@ func (r DeprecatedFieldRule) ValidateCallExpr(expr *ast.CallExpr) error {
 
 // ValidateReturnStmt will ensure that the deprecated field is not being returned
 // by any method or function.
-func (r DeprecatedFieldRule) ValidateReturnStmt(stmt *ast.ReturnStmt) error {
+func (r FieldRule) ValidateReturnStmt(stmt *ast.ReturnStmt) error {
 	batchError := pepperlint.NewBatchError()
 
 	for _, result := range stmt.Results {
@@ -378,14 +378,14 @@ func (r DeprecatedFieldRule) ValidateReturnStmt(stmt *ast.ReturnStmt) error {
 
 // ValidatePackage will set the current package name to the package that is currently
 // being visited.
-func (r *DeprecatedFieldRule) ValidatePackage(pkg *ast.Package) error {
+func (r *FieldRule) ValidatePackage(pkg *ast.Package) error {
 	r.currentPkgName = pkg.Name
 	return nil
 }
 
 // ValidateIncDecStmt will ensure that deprecated fields that utilize ++ or -- will
 // return an error.
-func (r DeprecatedFieldRule) ValidateIncDecStmt(stmt *ast.IncDecStmt) error {
+func (r FieldRule) ValidateIncDecStmt(stmt *ast.IncDecStmt) error {
 	batchError := pepperlint.NewBatchError()
 
 	switch t := stmt.X.(type) {
@@ -409,7 +409,7 @@ func (r DeprecatedFieldRule) ValidateIncDecStmt(stmt *ast.IncDecStmt) error {
 
 // ValidateBinaryExpr will ensure that neither the LHS or RHS of the expr uses a
 // deprecated field
-func (r DeprecatedFieldRule) ValidateBinaryExpr(expr *ast.BinaryExpr) error {
+func (r FieldRule) ValidateBinaryExpr(expr *ast.BinaryExpr) error {
 	batchError := pepperlint.NewBatchError()
 
 	if errs := r.checkBinaryExprFields(expr); len(errs) > 0 {
@@ -421,7 +421,7 @@ func (r DeprecatedFieldRule) ValidateBinaryExpr(expr *ast.BinaryExpr) error {
 
 // ValidateRangeStmt will ensure that deprecated fields are not used within a
 // range statement.
-func (r DeprecatedFieldRule) ValidateRangeStmt(expr *ast.RangeStmt) error {
+func (r FieldRule) ValidateRangeStmt(expr *ast.RangeStmt) error {
 	batchError := pepperlint.NewBatchError()
 
 	// TODO Also check if key or value is being assigned to a deprecated field
@@ -435,8 +435,8 @@ func (r DeprecatedFieldRule) ValidateRangeStmt(expr *ast.RangeStmt) error {
 	return batchError.Return()
 }
 
-// AddRules will add the DeprecatedFieldRule to the given visitor
-func (r *DeprecatedFieldRule) AddRules(visitorRules *pepperlint.Rules) {
+// AddRules will add the FieldRule to the given visitor
+func (r *FieldRule) AddRules(visitorRules *pepperlint.Rules) {
 	rules := pepperlint.Rules{
 		AssignStmtRules: pepperlint.AssignStmtRules{r},
 		BinaryExprRules: pepperlint.BinaryExprRules{r},
@@ -452,12 +452,12 @@ func (r *DeprecatedFieldRule) AddRules(visitorRules *pepperlint.Rules) {
 
 // WithCache will create a new helper with the given cache. This is used
 // to determine infomation about a specific ast.Node.
-func (r *DeprecatedFieldRule) WithCache(cache *pepperlint.Cache) {
+func (r *FieldRule) WithCache(cache *pepperlint.Cache) {
 	r.helper = pepperlint.NewHelper(cache)
 }
 
 // WithFileSet will set the token.FileSet to the rule allowing for more
 // in depth errors.
-func (r *DeprecatedFieldRule) WithFileSet(fset *token.FileSet) {
+func (r *FieldRule) WithFileSet(fset *token.FileSet) {
 	r.fset = fset
 }

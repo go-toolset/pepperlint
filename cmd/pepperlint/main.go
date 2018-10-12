@@ -158,9 +158,9 @@ func walk(v ast.Visitor, p []Packages) {
 // lint will lint the dir while walking the dirs provided to grab necessary metadata
 // from to then validate the dir with the gathered metadata.
 func lint(config Config, pkgs []string, pkg string) (*pepperlint.Visitor, Container, error) {
-	// Prepends go path
 	gopath := filepath.Join(os.Getenv("GOPATH"), "src")
-	pkg = filepath.Join(gopath, pkg)
+
+	// Prepends go path to each package in pkgs
 	for i, p := range pkgs {
 		pkgs[i] = filepath.Join(gopath, p)
 	}

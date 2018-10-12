@@ -1,4 +1,4 @@
-package core
+package deprecated
 
 import (
 	"fmt"
@@ -8,18 +8,18 @@ import (
 	"github.com/go-toolset/pepperlint"
 )
 
-// DeprecatedOpRule is used to walk and determine if an operation, whether function
+// OpRule is used to walk and determine if an operation, whether function
 // or method, being used is deprecated. If it is a deprecated operation, the appropriate
 // error will be returned.
-type DeprecatedOpRule struct {
+type OpRule struct {
 	fset           *token.FileSet
 	currentPkgName string
 	helper         pepperlint.Helper
 }
 
-// NewDeprecatedOpRule returns a new DeprecatedOpRule with the given file set.
-func NewDeprecatedOpRule(fset *token.FileSet) *DeprecatedOpRule {
-	return &DeprecatedOpRule{
+// NewOpRule returns a new OpRule with the given file set.
+func NewOpRule(fset *token.FileSet) *OpRule {
+	return &OpRule{
 		fset: fset,
 	}
 }
@@ -28,7 +28,7 @@ func NewDeprecatedOpRule(fset *token.FileSet) *DeprecatedOpRule {
 // whether or not it is an imported operation. With that, it'll get the
 // operation definition and this will take a look at the documentation
 // to determine if it is a deprecated operation.
-func (r *DeprecatedOpRule) isIdentDeprecated(ident *ast.Ident) error {
+func (r *OpRule) isIdentDeprecated(ident *ast.Ident) error {
 	var op *ast.FuncDecl
 	var ok bool
 
@@ -44,14 +44,14 @@ func (r *DeprecatedOpRule) isIdentDeprecated(ident *ast.Ident) error {
 	return nil
 }
 
-func (r *DeprecatedOpRule) getExternalPackageOp(ident *ast.Ident) (*ast.FuncDecl, bool) {
+func (r *OpRule) getExternalPackageOp(ident *ast.Ident) (*ast.FuncDecl, bool) {
 	return nil, false
 }
 
 // getInternalPackageOp will walk the nested parameters of the ident attempting to
 // grab the obj declaration. If the object declaration is of an *ast.FuncDecl, it
 // will the newly found object along with true.
-func (r *DeprecatedOpRule) getInternalPackageOp(ident *ast.Ident) (*ast.FuncDecl, bool) {
+func (r *OpRule) getInternalPackageOp(ident *ast.Ident) (*ast.FuncDecl, bool) {
 	if ident.Obj == nil {
 		return nil, false
 	}
@@ -68,7 +68,7 @@ func (r *DeprecatedOpRule) getInternalPackageOp(ident *ast.Ident) (*ast.FuncDecl
 	return nil, false
 }
 
-func (r *DeprecatedOpRule) getExternalPackageType(expr ast.Expr) ([]pepperlint.TypeInfo, bool) {
+func (r *OpRule) getExternalPackageType(expr ast.Expr) ([]pepperlint.TypeInfo, bool) {
 	infos := []pepperlint.TypeInfo{}
 
 	switch t := expr.(type) {
@@ -106,7 +106,7 @@ func (r *DeprecatedOpRule) getExternalPackageType(expr ast.Expr) ([]pepperlint.T
 	return infos, len(infos) > 0
 }
 
-func (r *DeprecatedOpRule) getExternalTypeSpec(rhs ast.Expr) (pepperlint.TypeInfo, bool) {
+func (r *OpRule) getExternalTypeSpec(rhs ast.Expr) (pepperlint.TypeInfo, bool) {
 	switch expr := rhs.(type) {
 	case *ast.CompositeLit:
 		exprType, ok := expr.Type.(*ast.SelectorExpr)
@@ -147,7 +147,7 @@ func (r *DeprecatedOpRule) getExternalTypeSpec(rhs ast.Expr) (pepperlint.TypeInf
 
 // getInternalPackageType will get associated type specs associated with the given
 // expression. The second parameter will be true if any type spec was found.
-func (r *DeprecatedOpRule) getInternalPackageType(expr ast.Expr) ([]pepperlint.TypeInfo, bool) {
+func (r *OpRule) getInternalPackageType(expr ast.Expr) ([]pepperlint.TypeInfo, bool) {
 	infos := []pepperlint.TypeInfo{}
 
 	switch t := expr.(type) {
@@ -183,7 +183,7 @@ func (r *DeprecatedOpRule) getInternalPackageType(expr ast.Expr) ([]pepperlint.T
 	return infos, len(infos) > 0
 }
 
-func (r *DeprecatedOpRule) getInternalTypeSpec(rhs ast.Expr) (*ast.TypeSpec, bool) {
+func (r *OpRule) getInternalTypeSpec(rhs ast.Expr) (*ast.TypeSpec, bool) {
 	switch expr := rhs.(type) {
 	case *ast.CompositeLit:
 		exprType, ok := expr.Type.(*ast.Ident)
@@ -219,7 +219,7 @@ func (r *DeprecatedOpRule) getInternalTypeSpec(rhs ast.Expr) (*ast.TypeSpec, boo
 // type spec off of the selector expression's X field. The type spec will be used
 // to determine whether or not that it is apart of the operation found via method name
 // and current package name.
-func (r *DeprecatedOpRule) isSelectorExprDeprecated(sel *ast.SelectorExpr) []error {
+func (r *OpRule) isSelectorExprDeprecated(sel *ast.SelectorExpr) []error {
 	methodName := sel.Sel.Name
 
 	var infos []pepperlint.TypeInfo
@@ -279,7 +279,7 @@ func (r *DeprecatedOpRule) isSelectorExprDeprecated(sel *ast.SelectorExpr) []err
 
 // ValidateAssignStmt will determine whether or not the RHS of an assignment expression
 // contains any deprecated operation.
-func (r *DeprecatedOpRule) ValidateAssignStmt(stmt *ast.AssignStmt) error {
+func (r *OpRule) ValidateAssignStmt(stmt *ast.AssignStmt) error {
 	batchError := pepperlint.NewBatchError()
 
 	for _, rhs := range stmt.Rhs {
@@ -298,7 +298,7 @@ func (r *DeprecatedOpRule) ValidateAssignStmt(stmt *ast.AssignStmt) error {
 }
 
 // ValidateCallExpr will determine if the operation in the CallExpr is deprecated.
-func (r *DeprecatedOpRule) ValidateCallExpr(expr *ast.CallExpr) error {
+func (r *OpRule) ValidateCallExpr(expr *ast.CallExpr) error {
 	batchError := pepperlint.NewBatchError()
 
 	switch fun := expr.Fun.(type) {
@@ -319,13 +319,13 @@ func (r *DeprecatedOpRule) ValidateCallExpr(expr *ast.CallExpr) error {
 
 // ValidatePackage is used to keep track of the current package scope that is
 // being traversed.
-func (r *DeprecatedOpRule) ValidatePackage(pkg *ast.Package) error {
+func (r *OpRule) ValidatePackage(pkg *ast.Package) error {
 	r.currentPkgName = pkg.Name
 	return nil
 }
 
 // AddRules will add the DeprecatedFieldRule to the given visitor
-func (r *DeprecatedOpRule) AddRules(visitorRules *pepperlint.Rules) {
+func (r *OpRule) AddRules(visitorRules *pepperlint.Rules) {
 	rules := pepperlint.Rules{
 		AssignStmtRules: pepperlint.AssignStmtRules{r},
 		CallExprRules:   pepperlint.CallExprRules{r},
@@ -337,12 +337,12 @@ func (r *DeprecatedOpRule) AddRules(visitorRules *pepperlint.Rules) {
 
 // WithCache will create a new helper with the given cache. This is used
 // to determine infomation about a specific ast.Node.
-func (r *DeprecatedOpRule) WithCache(cache *pepperlint.Cache) {
+func (r *OpRule) WithCache(cache *pepperlint.Cache) {
 	r.helper = pepperlint.NewHelper(cache)
 }
 
 // WithFileSet will set the token.FileSet to the rule allowing for more
 // in depth errors.
-func (r *DeprecatedOpRule) WithFileSet(fset *token.FileSet) {
+func (r *OpRule) WithFileSet(fset *token.FileSet) {
 	r.fset = fset
 }
